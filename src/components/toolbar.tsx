@@ -7,7 +7,10 @@ import {
   ImageIcon,
   LightningBoltIcon,
   ReloadIcon,
+  Cross2Icon,
+  HamburgerMenuIcon,
 } from "@radix-ui/react-icons";
+import React from "react";
 import Tool from "./tool";
 import * as Types from "@/types/types";
 
@@ -20,9 +23,40 @@ export default function Toolbar({
   toolDisabled: (tool: Types.Tool) => boolean;
   onSelect: (tool: Types.Tool) => void;
 }) {
+  // ToolBox bisa disembunyikan supaya tidak menutupi model 3D; pilihan diingat di browser
+  const [open, setOpen] = React.useState(true);
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem("toolbox-open") === "0") setOpen(false);
+    } catch {}
+  }, []);
+  const toggle = (v: boolean) => {
+    setOpen(v);
+    try {
+      localStorage.setItem("toolbox-open", v ? "1" : "0");
+    } catch {}
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => toggle(true)}
+        title="Tampilkan ToolBox"
+        className="static md:fixed z-10 left-4 top-4 flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs font-medium shadow-sm hover:bg-gray-100"
+      >
+        <HamburgerMenuIcon /> ToolBox
+      </button>
+    );
+  }
+
   return (
     <div className="static md:fixed z-10 left-10 flex md:flex-col items-center justify-center gap-2">
-      <p className="font-medium">ToolBox</p>
+      <div className="flex items-center gap-1">
+        <p className="font-medium">ToolBox</p>
+        <button onClick={() => toggle(false)} title="Sembunyikan ToolBox" className="rounded p-0.5 text-gray-500 hover:bg-gray-200">
+          <Cross2Icon />
+        </button>
+      </div>
       <div className="flex md:flex-col gap-4 w-fit bg-white shadow-sm p-1 rounded-sm">
         <Tool
           icon={<CursorArrowIcon />}
