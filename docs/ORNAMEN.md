@@ -49,3 +49,16 @@ Sumber yang disarankan:
 - Untuk ornamen yang rumit (karang boma, padmasana): modelkan di **Blender** dari gambar tampak, ekspor `.glb`, lalu ditempel di titik tempelnya.
 
 Langkah teknis mengganti pola patra dengan tekstur asli: taruh gambar di `public/textures/patra.jpg`, lalu ganti fungsi `getPatraCanvas()` di `ornaments.tsx` agar memuat gambar tersebut.
+
+## Katalog lengkap (mode Bangunan tunggal)
+
+Semua bangunan di dataset kini bisa dipilih satu per satu di mode **Bangunan tunggal** (`src/lib/bali3d/catalog.ts`, 48 entri):
+
+- **Tempat tinggal (14):** Meten Sakutus, Meten Sakutus Mamben, Meten Gunungrata (2 varian), Bale Paduman, Sakepat, Sakenem, Sakaroras, Sangasari, Tiang Sanga, Jineng, Gelebeg, Kelumpu, Kori. Paon tidak ada di dataset (perkiraan).
+- **Tempat suci (34):** Gedong V1–V5, Gedong Kembar V1–V2, Penyimpan, Gedong Taksu, Gedong Sari (tumpang 2) V1–V2, Betara Desa, Arca, Arip-Arip, Pesimpangan (Batu Karu, Uluwatu, Puncak Tedung), Taksu, Taksu Agung, Kemulan V1–V3, Padmasana, Tugu (Ratu Nglurah, Ratu Nglurah Agung), Meru Tumpang Tiga & Sebelas, Piasan V1–V2, Piasan Agung, Bale Agung, Pepelik, Pelinggih Ratu Sasih, bale suci tanpa nama.
+
+Generator pelinggih (`src/components/bali3d/shrines.tsx`) punya lima keluarga: gedong, kemulan, padmasana, tugu, meru. Susunannya tepas → kaki (pepalihan + karang sudut) → badan → rong berpintu prada → atap kubah ijuk (1–2 tumpang, meru 3–11) → murdha. Lebar dan tinggi diambil dari angka di gambar bila tertulis (misalnya Padmasana 1,35 × 3,34 m, Tugu 1,12 × 2,90 m, Meru Tumpang Tiga denah 2,40 m). Selebihnya diperkirakan dari proporsi gambar.
+
+Di mode Kompleks (ornamen aktif), **merajan** disusun dari Taksu (kaja-kauh), Kemulan rong tiga (tengah), Padmasana (kaja-kangin), dan Piasan kecil bila muat. **Penunggun karang** memakai model Tugu.
+
+Gambar pembanding tiap entri ada di `public/elevations/catalog/<id>.jpg` (dipangkas dari dataset, CC BY 4.0).

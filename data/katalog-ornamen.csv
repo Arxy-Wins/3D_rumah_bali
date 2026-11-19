@@ -16,3 +16,9 @@ pilaster tembok bermahkota,penyengker,tiap ±3,2 m,,bata + paras,sudah,Dataset: 
 patra (pita ukiran),panel atas pintu,di atas pintu,,paras,sudah (pola sementara buatan sendiri),,dataset tidak menggambar ukiran; ganti dengan foto patra asli bila ada
 karang boma,angkul-angkul,di atas lubang gerbang,,paras,belum,,tidak ada di gambar Kori dataset; perlu foto/model Blender
 karang simbar/karang di sudut,gedong/pelinggih,sudut badan,,paras,belum,Dataset: Gedong V1,
+pelinggih_gedong,Gedong (rong 1/2) + kubah ijuk + murdha,Bangunan Tempat Suci/Gedong*,shrines.tsx Gedong
+pelinggih_kemulan,Kemulan rong tiga + garuda,Bangunan Tempat Suci/Kemulan,shrines.tsx Gedong(kemulan)
+pelinggih_padmasana,Padmasana bertingkat + singgasana,Bangunan Tempat Suci/Padmasana,shrines.tsx Padmasana
+pelinggih_tugu,Tugu bertingkat + ceruk,Bangunan Tempat Suci/Tugu*,shrines.tsx Tugu
+pelinggih_meru,Meru tumpang 3–11,Bangunan Tempat Suci/Meru*,shrines.tsx Meru
+karang_sudut,Karang di sudut kaki pelinggih,Bangunan Tempat Suci (semua),shrines.tsx Karang

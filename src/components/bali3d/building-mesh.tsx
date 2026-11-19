@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { ShrineModel, type ShrineParams } from "./shrines";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { PlacedBuilding } from "../../lib/bali3d/layout";
@@ -308,13 +309,20 @@ export function BaliBuilding({
 
   if (isShrine) {
     // merajan: tembok rendah + beberapa pelinggih di sisi belakang; penunggun: satu pelinggih
-    if (s.type === "merajan") {
-      const n = Math.max(1, Math.min(3, Math.round((b.W * b.D) / 6)));
-      const ps = Math.min((b.W * 0.8) / n, b.D * 0.42, 1.5);
-      const xs = linspace(-b.W / 2 + ps * 0.7, b.W / 2 - ps * 0.7, n);
+    if (s.type === "merajan" && flags.ornaments) {
+      // merajan dari dataset: Padmasana (kaja-kangin), Kemulan rong tiga (tengah belakang),
+      // Taksu (kaja-kauh), Piasan kecil di depan bila muat
       const wallH = 1.0;
       const gap = 1.0;
       const side = (b.W - gap) / 2;
+      const k = Math.min(1, (b.D * 0.42) / 1.5, (b.W * 0.3) / 1.5);
+      const zBack = -b.D / 2 + 0.25 + 0.75 * k;
+      const shrines: { x: number; p: ShrineParams }[] = [
+        { x: -b.W * 0.32, p: { family: "gedong", W: 1.3 * k, H: 3.26 * k } },
+        { x: 0, p: { family: "kemulan", W: 1.49 * k, H: 3.3 * k } },
+        { x: b.W * 0.32, p: { family: "padmasana", W: 1.35 * k, H: 3.34 * k } },
+      ];
+      const piasan = b.D > 4.5 && b.W > 4;
       content = (
         <group>
           <Box size={[b.W, 0.08, b.D]} position={[0, 0.04, 0]} color={C.floor} />
@@ -323,16 +331,39 @@ export function BaliBuilding({
           <Box size={[0.2, wallH, b.D]} position={[b.W / 2 - 0.1, wallH / 2, 0]} color={C.paras} />
           <Box size={[side, wallH, 0.2]} position={[-(gap + side) / 2, wallH / 2, b.D / 2 - 0.1]} color={C.paras} />
           <Box size={[side, wallH, 0.2]} position={[(gap + side) / 2, wallH / 2, b.D / 2 - 0.1]} color={C.paras} />
+          {shrines.map((sh, i) => (
+            <group key={i} position={[sh.x, 0.08, zBack]}>
+              <ShrineModel {...sh.p} />
+            </group>
+          ))}
+          {piasan && (
+            <group position={[-b.W * 0.22, 0.08, b.D * 0.12]}>
+              <SmallPavilion W={Math.min(2.4, b.W * 0.35)} D={Math.min(1.9, b.D * 0.3)} roofColor={roofColor} />
+            </group>
+          )}
+        </group>
+      );
+    } else if (s.type === "merajan") {
+      const n = Math.max(1, Math.min(3, Math.round((b.W * b.D) / 6)));
+      const ps = Math.min((b.W * 0.8) / n, b.D * 0.42, 1.5);
+      const xs = linspace(-b.W / 2 + ps * 0.7, b.W / 2 - ps * 0.7, n);
+      content = (
+        <group>
+          <Box size={[b.W, 0.08, b.D]} position={[0, 0.04, 0]} color={C.floor} />
           {xs.map((x, i) => (
             <group key={i} position={[x, 0, -b.D / 2 + ps * 0.75 + 0.2]}>
-              <Pelinggih s={ps} baseH={s.plinthHeight * (i === Math.floor(n / 2) ? 1.15 : 1)} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={!!flags.ornaments} />
+              <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={false} />
             </group>
           ))}
         </group>
       );
+    } else if (flags.ornaments) {
+      // penunggun karang = Tugu (dataset: lebar 1,12 m, tinggi 2,90 m)
+      const k = Math.min(1, (Math.min(b.W, b.D) * 0.85) / 1.12);
+      content = <ShrineModel family="tugu" W={1.12 * k} H={2.9 * k} />;
     } else {
       const ps = Math.min(b.W, b.D) * 0.85;
-      content = <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={!!flags.ornaments} />;
+      content = <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={false} />;
     }
   } else if (isGate && flags.ornaments) {
     content = (
@@ -486,8 +517,10 @@ export function BaliBuilding({
           // jineng: tiang panggung kokoh + jelepih (penahan tikus) + lantai panggung lebar,
           // ruang simpan dibentuk oleh atap curam yang turun hampir ke lantai, bale-bale di bawah
           const inset = 0.3;
-          const tanP = Math.tan((s.roofPitchDeg * Math.PI) / 180);
-          const chamberH = roofBase - top + inset * tanP;
+          // tinggi permukaan dalam atap lengkung runcing pada jarak `inset` dari kaki atap
+          const halfSpan = b.W / 2;
+          const roofAtInset = roofBase + rise * Math.pow(Math.min(1, inset / halfSpan), 1 / 1.8);
+          const chamberH = Math.max(0.3, roofAtInset - top - 0.05);
           const seatY = ph + 0.5;
           return (
             <group>
@@ -506,7 +539,7 @@ export function BaliBuilding({
               {/* dinding ruang simpan di bawah kaki atap */}
               <Box size={[b.W - 2 * inset, chamberH, b.D - 2 * inset]} position={[0, top + chamberH / 2, 0]} color="#8a6a3a" />
               {/* pintu kecil di gewel depan */}
-              <Box size={[0.45, 0.55, 0.04]} position={[0, roofBase + inset * tanP + 0.35, b.D / 2 - inset + 0.03]} color={C.kayuDark} />
+              <Box size={[0.45, 0.55, 0.04]} position={[0, roofAtInset + 0.4, b.D / 2 - inset + 0.03]} color={C.kayuDark} />
             </group>
           );
         })()}
@@ -535,7 +568,15 @@ export function BaliBuilding({
         {/* atap */}
         <group position={[0, roofBase + roofLift, 0]}>
           {s.roofType === "limasan" && (
-            <Roof kind="hip" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} profile={flags.ornaments && s.roofMaterial !== "genteng" ? "flare" : "flat"} />
+            <Roof
+              kind="hip"
+              W={b.W}
+              D={b.D}
+              rise={rise}
+              color={roofColor}
+              mode={flags.roofMode}
+              profile={!flags.ornaments || s.roofMaterial === "genteng" ? "flat" : s.sacred && s.roofMaterial === "ijuk" ? "dome" : "flare"}
+            />
           )}
           {flags.ornaments && flags.roofMode !== "hidden" && (
             <RoofOrnaments
@@ -544,6 +585,7 @@ export function BaliBuilding({
               D={b.D}
               rise={rise}
               roofColor={roofColor}
+              sacred={!!s.sacred}
             />
           )}
           {s.roofType === "pelana" && (
@@ -602,6 +644,30 @@ export function BaliBuilding({
           </div>
         </Html>
       )}
+    </group>
+  );
+}
+
+/** piasan kecil (bale suci saka 4, atap ijuk) di dalam merajan */
+function SmallPavilion({ W, D, roofColor }: { W: number; D: number; roofColor: string }) {
+  const base = 0.6;
+  const h = 1.5;
+  const geo = React.useMemo(() => curvedHipRoof(W + 0.5, D + 0.5, 1.0, "dome"), [W, D]);
+  return (
+    <group>
+      <PepalihanPlinth w={W} d={D} h={base} xs={[-W / 2 + 0.15, W / 2 - 0.15]} zs={[-D / 2 + 0.15, D / 2 - 0.15]} />
+      {[-1, 1].map((sx) =>
+        [-1, 1].map((sz) => (
+          <mesh key={`${sx}${sz}`} position={[sx * (W / 2 - 0.15), base + h / 2, sz * (D / 2 - 0.15)]} castShadow>
+            <boxGeometry args={[0.12, h, 0.12]} />
+            <meshStandardMaterial color={C.kayu} />
+          </mesh>
+        ))
+      )}
+      <mesh geometry={geo} position={[0, base + h, 0]} castShadow>
+        <meshStandardMaterial color={roofColor} roughness={0.95} />
+      </mesh>
+      <Murdha s={0.18} y={base + h + 0.97} color="#d9d1c0" />
     </group>
   );
 }

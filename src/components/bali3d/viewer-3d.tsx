@@ -15,6 +15,9 @@ import { BUILDING_SPECS, type BuildingSpec, type RoofMaterial, type WallMaterial
 import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
 import { AssemblyMarker, CollapseZone, EvacuationRoutes, Ground, Penyengker, SafeArea } from "./site-mesh";
 import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
+import type { PlacedBuilding } from "../../lib/bali3d/layout";
+import { CATALOG, CATALOG_BY_ID, DEFAULT_ENTRY } from "../../lib/bali3d/catalog";
+import { ShrineModel, shrineHeight } from "./shrines";
 import { BuildingDims, LandDimensions, RuleDistanceLines } from "./dimensions";
 import type { BuildingType, DetectedBuilding } from "../../lib/bali3d/segmentation";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
@@ -85,7 +88,7 @@ function FocusRig({ target }: { target: { x: number; z: number; h: number; front
   return null;
 }
 
-function CameraRig({ preset, front, size, nonce, eyeY = 6.5 }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number; eyeY?: number }) {
+function CameraRig({ preset, front, size, nonce, eyeY = 6.5, targetY }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number; eyeY?: number; targetY?: number }) {
   const { camera, controls, invalidate } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; update: () => void } | null;
@@ -93,18 +96,18 @@ function CameraRig({ preset, front, size, nonce, eyeY = 6.5 }: { preset: CamPres
   };
   useEffect(() => {
     const d = Math.max(size, 6);
-    const ty = preset === "depan" || preset === "samping" ? Math.min(2, eyeY * 0.5) : 0;
+    const ty = preset === "atas" ? 0 : targetY ?? (preset === "depan" || preset === "samping" ? Math.min(2, eyeY * 0.5) : 0);
     if (preset === "atas") camera.position.set(0, d * 1.55, 0.01);
     else if (preset === "depan") camera.position.set(front.x * d * 1.25, eyeY, front.z * d * 1.25);
     else if (preset === "samping") camera.position.set(front.z * d * 1.25, eyeY, -front.x * d * 1.25);
-    else camera.position.set(d * 0.62, d * 0.6, d * 0.78);
+    else camera.position.set(d * 0.62, d * 0.6 + ty * 0.5, d * 0.78);
     camera.lookAt(0, ty, 0);
     if (controls) {
       controls.target.set(0, ty, 0);
       controls.update();
     }
     invalidate(); // frameloop "demand": gambar ulang sekali setelah kamera dipindah
-  }, [preset, front.x, front.z, size, camera, controls, nonce, invalidate, eyeY]);
+  }, [preset, front.x, front.z, size, camera, controls, nonce, invalidate, eyeY, targetY]);
   return null;
 }
 
@@ -265,6 +268,22 @@ export default function Viewer3D({
   const [viewMode, setViewMode] = useState<"kompleks" | "tunggal">("kompleks");
   const [singleType, setSingleType] = useState<BuildingType>("bale_daja");
   const [singleSize, setSingleSize] = useState<{ P: number; L: number }>({ P: 6, L: 3.6 });
+  const [singleId, setSingleId] = useState<string>("meten-sakutus");
+  const [shrineH, setShrineH] = useState<number>(3.3);
+  const entry = CATALOG_BY_ID[singleId];
+  const pickEntry = (id: string) => {
+    const e = CATALOG_BY_ID[id];
+    if (!e) return;
+    setSingleId(id);
+    setSingleType(e.base ?? "merajan");
+    setSingleSize({ P: e.P, L: e.L });
+    if (e.shrine) setShrineH(e.shrine.H);
+    setOverrides((o) => {
+      const n = { ...o };
+      delete n[`${e.base ?? "merajan"}-tunggal`];
+      return n;
+    });
+  };
   const exportRef = useRef<THREE.Group>(null);
   const [showDist, setShowDist] = useState(false);
   const shakeRef = useRef<ShakeState>({ active: false, start: 0, duration: 12, intensity: 0, freq: 2 });
@@ -333,7 +352,19 @@ export default function Viewer3D({
     };
   }, [singleType, singleSize]);
   const activeSeg = tunggal ? singleSeg : seg;
-  const buildings = useMemo(() => (activeSeg ? placeBuildings(activeSeg, overrides) : []), [activeSeg, overrides]);
+  const shrineMode = tunggal && entry?.kind === "shrine";
+  const shrineP = shrineMode && entry?.shrine ? { ...entry.shrine, W: singleSize.P, H: shrineH } : null;
+  const buildings = useMemo(() => {
+    if (!activeSeg) return [];
+    if (tunggal && entry?.spec) {
+      const id = `${singleType}-tunggal`;
+      return placeBuildings(activeSeg, { ...overrides, [id]: { ...entry.spec, ...(overrides[id] ?? {}) } });
+    }
+    return placeBuildings(activeSeg, overrides);
+  }, [activeSeg, overrides, tunggal, entry, singleType]);
+  const shrineFake = shrineP
+    ? ({ id: "shrine", center: { x: 0, z: 0 }, phi: 0, W: shrineP.W, D: shrineP.W, height: shrineHeight(shrineP) } as unknown as PlacedBuilding)
+    : null;
   const site = useMemo(
     () => (ENABLE_GEMPA && seg ? analyzeSite(seg, buildings, params) : null),
     [seg, buildings, params]
@@ -347,7 +378,10 @@ export default function Viewer3D({
 
   const gate = buildings.find((b) => b.type === "angkul_angkul");
   const front = gate ? gate.front : { x: 0, z: 1 };
-  const siteSize = tunggal
+  const tunggalH = shrineP ? shrineHeight(shrineP) : buildings[0]?.height ?? 4;
+  const siteSize = shrineP
+    ? Math.max(shrineP.W * 2.5, shrineHeight(shrineP) * 1.25) * 1.7
+    : tunggal
     ? Math.max(singleSize.P, singleSize.L, (buildings[0]?.height ?? 4) * 1.2) * 1.7
     : seg && seg.land.length
     ? Math.max(...seg.land.map((p) => Math.hypot(p.x, p.z))) * 2
@@ -362,7 +396,7 @@ export default function Viewer3D({
     ornaments: tunggal || showOrn,
   };
 
-  const sel = tunggal ? buildings[0] ?? null : buildings.find((b) => b.id === selected) ?? null;
+  const sel = shrineMode ? null : tunggal ? buildings[0] ?? null : buildings.find((b) => b.id === selected) ?? null;
   const focusTarget = useMemo(
     () => (sel && !tunggal ? { x: sel.center.x, z: sel.center.z, h: sel.height, front: sel.front } : null),
     [sel?.id] // eslint-disable-line react-hooks/exhaustive-deps
@@ -378,7 +412,7 @@ export default function Viewer3D({
         const blob = new Blob([res as ArrayBuffer], { type: "model/gltf-binary" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `${tunggal ? singleType : "rumah-bali"}.glb`;
+        a.download = `${tunggal ? singleId : "rumah-bali"}.glb`;
         a.click();
         URL.revokeObjectURL(a.href);
       },
@@ -463,8 +497,9 @@ export default function Viewer3D({
           active={tunggal}
           onClick={() => {
             if (sel) {
-              setSingleType(sel.type);
-              setSingleSize({ P: +Math.max(sel.W, sel.D).toFixed(2), L: +Math.min(sel.W, sel.D).toFixed(2) });
+              pickEntry(DEFAULT_ENTRY[sel.type]);
+              if (sel.type !== "merajan" && sel.type !== "penunggun_karang")
+                setSingleSize({ P: +Math.max(sel.W, sel.D).toFixed(2), L: +Math.min(sel.W, sel.D).toFixed(2) });
             }
             setViewMode("tunggal");
             setPreset("perspektif");
@@ -598,10 +633,11 @@ export default function Viewer3D({
                 {!tunggal && seg && <Compass land={seg.land} kaja={kajaDir(asta?.orientation ?? "Bali Selatan")} />}
                 {!tunggal && seg && showDims && <LandDimensions land={seg.land} />}
                 {!tunggal && seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
-                {tunggal && showDims && buildings[0] && <BuildingDims b={buildings[0]} />}
+                {tunggal && showDims && (shrineFake ? <BuildingDims b={shrineFake} /> : buildings[0] && <BuildingDims b={buildings[0]} />)}
                 <group ref={exportRef}>
                 {!tunggal && seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} ornate={flags.ornaments} />}
-                {buildings.map((b) => (
+                {shrineP && <ShrineModel {...shrineP} />}
+                {!shrineP && buildings.map((b) => (
                   <BaliBuilding
                     key={b.id}
                     b={b}
@@ -630,7 +666,8 @@ export default function Viewer3D({
                 front={tunggal ? buildings[0]?.front ?? { x: 0, z: 1 } : front}
                 size={siteSize}
                 nonce={camNonce}
-                eyeY={tunggal ? Math.max(1.6, (buildings[0]?.height ?? 4) * 0.55) : 6.5}
+                eyeY={tunggal ? Math.max(1.6, tunggalH * 0.55) : 6.5}
+                targetY={tunggal ? tunggalH * 0.45 : undefined}
               />
               <FocusRig target={focusTarget} />
             </ShakeProvider>
@@ -663,24 +700,31 @@ export default function Viewer3D({
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="col-span-2 flex flex-col gap-0.5 text-[11px] text-gray-600">
                   Tipe bangunan
-                  <select
-                    className="h-7 rounded border px-1 text-xs text-gray-900"
-                    value={singleType}
-                    onChange={(e) => {
-                      const t = e.target.value as BuildingType;
-                      const [a, c] = DEFAULT_SIZE[t];
-                      setSingleType(t);
-                      setSingleSize({ P: Math.max(a, c), L: Math.min(a, c) });
-                    }}
-                  >
-                    {(Object.keys(BUILDING_SPECS) as BuildingType[]).map((t) => (
-                      <option key={t} value={t}>
-                        {BUILDING_SPECS[t].name}
-                      </option>
+                  <select className="h-7 rounded border px-1 text-xs text-gray-900" value={singleId} onChange={(e) => pickEntry(e.target.value)}>
+                    {(["Hunian", "Suci"] as const).map((g) => (
+                      <optgroup key={g} label={g === "Hunian" ? "Bangunan tempat tinggal" : "Bangunan tempat suci"}>
+                        {CATALOG.filter((c) => c.group === g).map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </label>
-                {(["P", "L"] as const).map((k) => (
+                {shrineMode && (
+                  <>
+                    <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+                      Lebar alas (m)
+                      <input type="number" step={0.05} min={0.4} value={singleSize.P} onChange={(e) => setSingleSize((v) => ({ ...v, P: Math.max(0.4, parseFloat(e.target.value) || 0.4) }))} className="h-7 rounded border px-1.5 text-xs text-gray-900" />
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+                      Tinggi (m)
+                      <input type="number" step={0.05} min={1} value={shrineH} onChange={(e) => setShrineH(Math.max(1, parseFloat(e.target.value) || 1))} className="h-7 rounded border px-1.5 text-xs text-gray-900" />
+                    </label>
+                  </>
+                )}
+                {!shrineMode && (["P", "L"] as const).map((k) => (
                   <label key={k} className="flex flex-col gap-0.5 text-[11px] text-gray-600">
                     {k === "P" ? "Panjang (m)" : "Lebar (m)"}
                     <input
@@ -695,11 +739,26 @@ export default function Viewer3D({
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-gray-500">
+                {entry?.note && <span className="block text-gray-600">Dari gambar: {entry.note}</span>}
                 Tips: klik bangunan di mode Kompleks lalu pilih &quot;Bangunan tunggal&quot; untuk memakai ukurannya. Tampak Depan/Samping untuk elevasi, &quot;Unduh 3D&quot; untuk file .glb.
               </p>
+              {entry?.source && (
+                <figure className="mt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/elevations/catalog/${entry.id}.jpg`}
+                    alt={`Tampak depan ${entry.name}`}
+                    className="w-full rounded border bg-white"
+                    onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
+                  />
+                  <figcaption className="mt-0.5 text-[10px] leading-snug text-gray-400">
+                    Pembanding: {entry.name} — Traditional Balinese Building Architecture Dataset (Mendeley Data, DOI 10.17632/h7hxgwydzj, CC BY 4.0).
+                  </figcaption>
+                </figure>
+              )}
             </div>
           )}
-          {!sel && (
+          {!sel && !tunggal && (
             <div className="rounded-md bg-white p-3 text-sm shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="font-semibold">Parameter lahan</p>
@@ -728,7 +787,7 @@ export default function Viewer3D({
               )}
             </div>
           )}
-          {compliance && asta && !sel && (
+          {compliance && asta && !sel && !tunggal && (
             <div className="rounded-md bg-white p-3 text-sm shadow-sm">
               <div className="flex items-baseline justify-between">
                 <p className="font-semibold">Kesesuaian Asta Kosala Kosali</p>
@@ -875,7 +934,7 @@ export default function Viewer3D({
                 )}
               </div>
               {/* gambar tampak depan dari dataset sebagai pembanding */}
-              {ELEV_REF[sel.type] && (
+              {!tunggal && ELEV_REF[sel.type] && (
                 <figure className="mt-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img

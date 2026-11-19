@@ -44,6 +44,8 @@ export interface BuildingSpec {
   walls: { back: boolean; left: boolean; right: boolean; front: boolean };
   /** hunian/aktivitas (dipakai untuk prioritas evakuasi) */
   occupied: boolean;
+  /** bangunan suci (piasan, pepelik, dll.): atap bermurdha */
+  sacred?: boolean;
 }
 
 export const BUILDING_SPECS: Record<BuildingType, BuildingSpec> = {
@@ -205,8 +207,8 @@ export function roofRise(spec: BuildingSpec, roofW: number, roofD: number) {
 
 /** Tinggi kaki atap (garis teritisan) dari natah, meter */
 export function roofBaseHeight(spec: BuildingSpec) {
-  // jineng: atap curam langsung membungkus ruang simpan di atas lantai panggung
-  return spec.plinthHeight + spec.sakaHeight + (spec.roofType === "jineng" ? 0.2 : 0);
+  // jineng: kaki atap turun sedikit melewati lantai panggung (dataset Jineng, tampak samping)
+  return spec.plinthHeight + spec.sakaHeight + (spec.roofType === "jineng" ? -0.12 : 0);
 }
 
 /** Tinggi total bangunan dari natah sampai bubungan (meter) */
