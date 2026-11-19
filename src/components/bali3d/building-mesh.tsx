@@ -374,7 +374,7 @@ export function BaliBuilding({
         {cols.map(([x, z], i) => (
           <group key={i} position={[x, ph, z]}>
             <Box size={[0.34, umpakH, 0.34]} position={[0, umpakH / 2, 0]} color={C.parasDark} />
-            <Box size={[0.15, sakaH, 0.15]} position={[0, umpakH + sakaH / 2, 0]} color={C.kayu} />
+            <Box size={isJineng ? [0.2, sakaH, 0.2] : [0.15, sakaH, 0.15]} position={[0, umpakH + sakaH / 2, 0]} color={C.kayu} />
             {showMit && (
               <mesh position={[0, umpakH + 0.12, 0]}>
                 <boxGeometry args={[0.2, 0.08, 0.2]} />
@@ -421,19 +421,34 @@ export function BaliBuilding({
         )}
 
         {/* jineng: jelepih + lantai panggung + ruang simpan */}
-        {isJineng && (
-          <group>
-            {cols.map(([x, z], i) => (
-              <mesh key={i} position={[x, top - 0.35, z]}>
-                <cylinderGeometry args={[0.24, 0.24, 0.04, 16]} />
-                <meshStandardMaterial color={C.kayuDark} />
-              </mesh>
-            ))}
-            <Box size={[bw * 0.95, 0.12, bd * 0.95]} position={[0, top - 0.24, 0]} color={C.kayu} />
-            <Box size={[bw * 0.75, 0.55, bd * 0.75]} position={[0, top + 0.1, 0]} color={C.kayu} />
-            <Box size={[0.5, 0.45, 0.03]} position={[0, top + 0.1, (bd * 0.75) / 2 + 0.02]} color={C.kayuDark} />
-          </group>
-        )}
+        {isJineng && (() => {
+          // jineng: tiang panggung kokoh + jelepih (penahan tikus) + lantai panggung lebar,
+          // ruang simpan dibentuk oleh atap curam yang turun hampir ke lantai, bale-bale di bawah
+          const inset = 0.3;
+          const tanP = Math.tan((s.roofPitchDeg * Math.PI) / 180);
+          const chamberH = roofBase - top + inset * tanP;
+          const seatY = ph + 0.5;
+          return (
+            <group>
+              {cols.map(([x, z], i) => (
+                <mesh key={i} position={[x, top - 0.32, z]}>
+                  <cylinderGeometry args={[0.26, 0.26, 0.05, 16]} />
+                  <meshStandardMaterial color={C.kayuDark} />
+                </mesh>
+              ))}
+              {/* bale-bale (tempat duduk) di antara tiang */}
+              <Box size={[spanX + 0.3, 0.08, spanZ + 0.3]} position={[0, seatY, 0]} color={C.kayu} />
+              {/* balok sineb + lantai panggung */}
+              <Box size={[spanX + 0.35, 0.14, 0.16]} position={[0, top - 0.2, -spanZ / 2]} color={C.kayuDark} />
+              <Box size={[spanX + 0.35, 0.14, 0.16]} position={[0, top - 0.2, spanZ / 2]} color={C.kayuDark} />
+              <Box size={[b.W - 2 * inset + 0.2, 0.12, b.D - 2 * inset + 0.2]} position={[0, top - 0.07, 0]} color={C.kayu} />
+              {/* dinding ruang simpan di bawah kaki atap */}
+              <Box size={[b.W - 2 * inset, chamberH, b.D - 2 * inset]} position={[0, top + chamberH / 2, 0]} color="#8a6a3a" />
+              {/* pintu kecil di gewel depan */}
+              <Box size={[0.45, 0.55, 0.04]} position={[0, roofBase + inset * tanP + 0.35, b.D / 2 - inset + 0.03]} color={C.kayuDark} />
+            </group>
+          );
+        })()}
 
         {/* atap */}
         <group position={[0, roofBase + roofLift, 0]}>
@@ -442,7 +457,7 @@ export function BaliBuilding({
             <Roof kind="gable" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor={C.bata} gableInset={s.overhang} />
           )}
           {s.roofType === "jineng" && (
-            <Roof kind="gableZ" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor={C.kayu} gableInset={s.overhang * 0.6} />
+            <Roof kind="gableZ" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor="#8a6a3a" gableInset={0.3} />
           )}
         </group>
       </group>

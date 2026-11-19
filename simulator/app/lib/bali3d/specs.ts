@@ -134,10 +134,10 @@ export const BUILDING_SPECS: Record<BuildingType, BuildingSpec> = {
     sakaCount: 4,
     sakaGrid: [2, 2],
     plinthHeight: 0.3,
-    sakaHeight: 1.7,
+    sakaHeight: 1.6,
     roofType: "jineng",
     roofPitchDeg: 62,
-    overhang: 0.5,
+    overhang: 0.3,
     roofMaterial: "alang-alang",
     wallMaterial: "kayu",
     walls: { back: false, left: false, right: false, front: false },
@@ -204,7 +204,7 @@ export function roofRise(spec: BuildingSpec, roofW: number, roofD: number) {
 /** Tinggi kaki atap (garis teritisan) dari natah, meter */
 export function roofBaseHeight(spec: BuildingSpec) {
   // jineng: atap curam langsung membungkus ruang simpan di atas lantai panggung
-  return spec.plinthHeight + spec.sakaHeight + (spec.roofType === "jineng" ? 0.35 : 0);
+  return spec.plinthHeight + spec.sakaHeight + (spec.roofType === "jineng" ? 0.2 : 0);
 }
 
 /** Tinggi total bangunan dari natah sampai bubungan (meter) */

@@ -43,6 +43,26 @@ function imageToData(img: CanvasImageSource): ImageData | null {
   return ctx.getImageData(0, 0, 256, 256);
 }
 
+/** saat bangunan dipilih, kamera mendekat ke bangunan itu */
+function FocusRig({ target }: { target: { x: number; z: number; h: number; front: { x: number; z: number } } | null }) {
+  const { camera, controls, invalidate } = useThree() as unknown as {
+    camera: THREE.PerspectiveCamera;
+    controls: { target: THREE.Vector3; update: () => void } | null;
+    invalidate: () => void;
+  };
+  useEffect(() => {
+    if (!target) return;
+    const d = Math.max(7, target.h * 2.6);
+    camera.position.set(target.x + target.front.x * d + d * 0.35, target.h * 0.95 + 1.2, target.z + target.front.z * d + d * 0.35);
+    if (controls) {
+      controls.target.set(target.x, target.h * 0.45, target.z);
+      controls.update();
+    }
+    invalidate();
+  }, [target, camera, controls, invalidate]);
+  return null;
+}
+
 function CameraRig({ preset, front, size, nonce }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number }) {
   const { camera, controls, invalidate } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
@@ -265,6 +285,10 @@ export default function Viewer3D({
   };
 
   const sel = buildings.find((b) => b.id === selected) ?? null;
+  const focusTarget = useMemo(
+    () => (sel ? { x: sel.center.x, z: sel.center.z, h: sel.height, front: sel.front } : null),
+    [sel?.id] // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const selReport = site?.buildings.find((r) => r.id === selected) ?? null;
 
   const updateSpec = (patch: Partial<BuildingSpec>) => {
@@ -450,6 +474,7 @@ export default function Viewer3D({
               </GroundMotion>
               <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.05} />
               <CameraRig preset={preset} front={front} size={siteSize} nonce={camNonce} />
+              <FocusRig target={focusTarget} />
             </ShakeProvider>
           </Canvas>
           {computing && (
