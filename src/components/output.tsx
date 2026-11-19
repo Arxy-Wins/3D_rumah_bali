@@ -168,13 +168,13 @@ export default function Output({
           {image && (
             <Image
               onMouseMove={(event) => {
-                const mousePos = event.evt.offsetX;
-                const mousePosY = event.evt.offsetY;
-
-                const pixelColor = stageRef.current
-                  ?.toCanvas()
-                  .getContext("2d")
-                  ?.getImageData(mousePos, mousePosY, 1, 1).data;
+                // baca langsung dari kanvas hasil GAN (tidak menyalin seluruh stage tiap gerakan mouse)
+                const pos = stageRef.current?.getRelativePointerPosition();
+                const src = image?.image as HTMLCanvasElement | undefined;
+                const pixelColor =
+                  pos && src && "getContext" in src
+                    ? src.getContext("2d")?.getImageData(Math.floor(pos.x), Math.floor(pos.y), 1, 1).data
+                    : undefined;
 
                 if (pixelColor) {
                   const red = pixelColor[0];

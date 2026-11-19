@@ -44,9 +44,10 @@ function imageToData(img: CanvasImageSource): ImageData | null {
 }
 
 function CameraRig({ preset, front, size, nonce }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number }) {
-  const { camera, controls } = useThree() as unknown as {
+  const { camera, controls, invalidate } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; update: () => void } | null;
+    invalidate: () => void;
   };
   useEffect(() => {
     const d = Math.max(size, 12);
@@ -58,7 +59,8 @@ function CameraRig({ preset, front, size, nonce }: { preset: CamPreset; front: {
       controls.target.set(0, preset === "depan" ? 2 : 0, 0);
       controls.update();
     }
-  }, [preset, front.x, front.z, size, camera, controls, nonce]);
+    invalidate(); // frameloop "demand": gambar ulang sekali setelah kamera dipindah
+  }, [preset, front.x, front.z, size, camera, controls, nonce, invalidate]);
   return null;
 }
 
@@ -206,6 +208,7 @@ export default function Viewer3D({
   const [selected, setSelected] = useState<string | null>(null);
   const [intensityIdx, setIntensityIdx] = useState(1);
   const [shaking, setShaking] = useState(false);
+  const [shadowsOn, setShadowsOn] = useState(false);
   const shakeRef = useRef<ShakeState>({ active: false, start: 0, duration: 12, intensity: 0, freq: 2 });
 
   const source = uploaded ?? image;
@@ -225,10 +228,20 @@ export default function Viewer3D({
   }, [source, footLength]);
 
   const mode = layoutMode === "aturan" && asta ? "aturan" : segGan ? "gan" : asta ? "aturan" : "gan";
-  const seg: Segmentation | null = useMemo(() => {
-    if (mode === "aturan" && asta) return buildAstaSegmentation(asta, null, gateSeg, landShape);
-    if (segGan && asta) return withGate(segGan, asta, gateSeg);
-    return segGan;
+  // penyusunan tata letak dijalankan setelah UI sempat menggambar (tidak mengunci halaman)
+  const [seg, setSeg] = useState<Segmentation | null>(null);
+  const [computing, setComputing] = useState(false);
+  useEffect(() => {
+    if (mode === "aturan" && asta) {
+      setComputing(true);
+      const id = window.setTimeout(() => {
+        setSeg(buildAstaSegmentation(asta, null, gateSeg, landShape));
+        setComputing(false);
+      }, 30);
+      return () => window.clearTimeout(id);
+    }
+    setSeg(segGan && asta ? withGate(segGan, asta, gateSeg) : segGan);
+    setComputing(false);
   }, [mode, asta, segGan, gateSeg, landShape]);
 
   const buildings = useMemo(() => (seg ? placeBuildings(seg, overrides) : []), [seg, overrides]);
@@ -365,6 +378,9 @@ export default function Viewer3D({
         <Toggle active={showLabels} onClick={() => setShowLabels((v) => !v)}>
           Label
         </Toggle>
+        <Toggle active={shadowsOn} onClick={() => setShadowsOn((v) => !v)} title="Bayangan lebih bagus tapi lebih berat">
+          Bayangan
+        </Toggle>
         <label className="ml-auto cursor-pointer text-xs text-gray-500 underline">
           Muat denah lain
           <input
@@ -386,7 +402,13 @@ export default function Viewer3D({
       <div className="flex w-full flex-col gap-3 xl:flex-row">
         {/* kanvas 3D */}
         <div className="relative h-[560px] w-full overflow-hidden rounded-md bg-gradient-to-b from-sky-200 to-sky-50 shadow-sm xl:flex-1">
-          <Canvas shadows camera={{ fov: 40, near: 0.1, far: 500, position: [0, 50, 0.01] }} onPointerMissed={() => setSelected(null)}>
+          <Canvas
+            shadows={shadowsOn}
+            frameloop={shaking ? "always" : "demand"}
+            dpr={[1, 1.5]}
+            camera={{ fov: 40, near: 0.1, far: 500, position: [0, 50, 0.01] }}
+            onPointerMissed={() => setSelected(null)}
+          >
             <ShakeProvider value={shakeRef}>
               <ambientLight intensity={0.55} />
               <hemisphereLight args={["#e0f2fe", "#6b8f47", 0.35]} />
@@ -394,7 +416,7 @@ export default function Viewer3D({
                 position={[18, 30, 12]}
                 intensity={1.3}
                 castShadow
-                shadow-mapSize={[2048, 2048]}
+                shadow-mapSize={[1024, 1024]}
                 shadow-camera-left={-30}
                 shadow-camera-right={30}
                 shadow-camera-top={30}
@@ -430,6 +452,11 @@ export default function Viewer3D({
               <CameraRig preset={preset} front={front} size={siteSize} nonce={camNonce} />
             </ShakeProvider>
           </Canvas>
+          {computing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/40 text-sm font-medium text-gray-700">
+              Menyusun tata letak…
+            </div>
+          )}
           {showMitigation && (
             <div className="absolute bottom-2 left-2 space-y-0.5 rounded bg-white/90 p-2 text-[11px] shadow">
               <div><span className="mr-1 inline-block h-2 w-3 bg-red-400/60" />Zona runtuh ({params.collapseFactor}× tinggi)</div>

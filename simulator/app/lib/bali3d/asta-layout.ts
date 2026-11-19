@@ -459,7 +459,7 @@ function optimizeLayout(
         if (gn < 0) c += 30 + 40 * -gn;
       }
       if (poly) {
-        const out = outsideCount(A, poly);
+        const out = outCache[types[i]];
         if (out) c += 80 * out;
       }
       const gk = clearance(A, keepout);
@@ -472,14 +472,20 @@ function optimizeLayout(
     return c;
   };
 
-  const start = JSON.stringify(cur);
+  // jumlah titik di luar lahan per bangunan (di-cache; hanya dihitung ulang untuk bangunan yang digeser)
+  const outCache: Record<string, number> = {};
+  const refreshOut = (t: string) => (outCache[t] = poly ? outsideCount(cur[t], poly) : 0);
+  types.forEach(refreshOut);
+  const snapshot = () => Object.fromEntries(types.map((t) => [t, { ...cur[t] }])) as Record<string, Rect>;
+  const start = snapshot();
   let best = cost();
   let bestState = start;
-  for (const seed of [1337, 7, 2026]) {
+  for (const seed of [1337, 7]) {
   const rnd = mulberry32(seed);
-  Object.assign(cur, JSON.parse(start));
+  types.forEach((t) => (cur[t] = { ...start[t] }));
+  types.forEach(refreshOut);
   let curCost = cost();
-  const N = 9000;
+  const N = 6000;
   for (let it = 0; it < N; it++) {
     const T = 1 * Math.pow(0.0005, it / N);
     const t = movable[Math.floor(rnd() * movable.length)];
@@ -489,20 +495,22 @@ function optimizeLayout(
     const dv = (rnd() - 0.5) * 2 * step;
     const moved = fit({ u0: r.u0 + du, u1: r.u1 + du, v0: r.v0 + dv, v1: r.v1 + dv }, ew, ns);
     cur[t] = moved;
+    const prevOut = outCache[t];
+    refreshOut(t);
     const nc = cost();
     if (nc < curCost || rnd() < Math.exp((curCost - nc) / T)) {
       curCost = nc;
       if (nc < best) {
         best = nc;
-        bestState = JSON.stringify(cur);
+        bestState = snapshot();
       }
     } else {
       cur[t] = r;
+      outCache[t] = prevOut;
     }
   }
   }
-  const out = JSON.parse(bestState) as Record<BuildingType, Rect>;
-  return out;
+  return bestState as Record<BuildingType, Rect>;
 }
 
 // ---------------- cek kesesuaian ----------------

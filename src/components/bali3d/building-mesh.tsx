@@ -39,6 +39,19 @@ const RISK_COLOR: Record<BuildingReport["level"], string> = {
   Tinggi: "#ef4444",
 };
 
+// material & geometri dipakai bersama → jauh lebih sedikit objek GPU
+const MAT_CACHE = new Map<string, THREE.MeshStandardMaterial>();
+function sharedMat(color: string, opacity = 1) {
+  const key = `${color}|${opacity}`;
+  let m = MAT_CACHE.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, transparent: opacity < 1, opacity });
+    MAT_CACHE.set(key, m);
+  }
+  return m;
+}
+const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+
 function Box({
   size,
   position,
@@ -53,10 +66,15 @@ function Box({
   opacity?: number;
 }) {
   return (
-    <mesh position={position} rotation={rotation} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={color} transparent={opacity < 1} opacity={opacity} roughness={0.85} />
-    </mesh>
+    <mesh
+      position={position}
+      rotation={rotation}
+      scale={size}
+      geometry={UNIT_BOX}
+      material={sharedMat(color, opacity)}
+      castShadow
+      receiveShadow
+    />
   );
 }
 
@@ -232,8 +250,8 @@ export function BaliBuilding({
     if (!g) return;
     const st = shake.current;
     if (!st.active) {
-      g.rotation.z *= 0.9;
-      g.rotation.x *= 0.9;
+      g.rotation.z = 0;
+      g.rotation.x = 0;
       return;
     }
     const t = clock.getElapsedTime() - st.start;

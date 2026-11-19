@@ -42,8 +42,8 @@ export function GroundMotion({ children, onEnd }: { children: React.ReactNode; o
       startedRef.current = st.start;
     }
     if (!st.active) {
-      g.position.x *= 0.85;
-      g.position.z *= 0.85;
+      g.position.x = 0;
+      g.position.z = 0;
       return;
     }
     const t = clock.getElapsedTime() - st.start;
