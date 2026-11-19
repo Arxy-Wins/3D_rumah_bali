@@ -47,3 +47,7 @@ npm run dev          # http://localhost:5173/simulator
 2. Root Directory: `simulator` (pengaturan build sudah ada di `simulator/vercel.json`). Klik **Deploy**.
 
 Catatan: model GAN di `public/model` sudah dikuantisasi ke uint8 (±54 MB, 13 shard; aslinya float32 ±208 MB) dengan `scripts/quantize_tfjs.py`. Hasil denah praktis identik (selisih rata-rata piksel 0,13 dari 255; bangunan terdeteksi sama). Model diunduh sekali per kunjungan saat Generate pertama, dengan indikator persentase.
+
+## Atribusi
+
+Gambar pembanding di `public/elevations/` dan acuan bentuk/ukuran ornamen berasal dari *Traditional Balinese Building Architecture Dataset* — I Gusti Agung Gede Arya Kadyanan dkk., Mendeley Data, DOI [10.17632/h7hxgwydzj](https://doi.org/10.17632/h7hxgwydzj), lisensi CC BY 4.0. Gambar dipotong margin dan diperkecil.

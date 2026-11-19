@@ -7,9 +7,9 @@ import { Html } from "@react-three/drei";
 import type { PlacedBuilding } from "../../lib/bali3d/layout";
 import type { BuildingReport } from "../../lib/bali3d/seismic";
 import { ROOF_COLORS, roofBaseHeight, roofRise } from "../../lib/bali3d/specs";
-import { gableEnds, gableRoof, hipRoof } from "./roof-geometry";
+import { curvedGableEnds, curvedGableRoof, curvedHipRoof, type RoofProfile } from "./roof-geometry";
 import { useShake } from "./shake";
-import { Canggahwang, KoriFrame, Murdha, PepalihanPlinth, RoofOrnaments, WallBand, patraMaterial } from "./ornaments";
+import { BaleBale, Canggahwang, Emper, KoriFrame, KoriGate, Murdha, PepalihanPlinth, RoofOrnaments, SakaCap, Sendi, SquareWindow, patraMaterial } from "./ornaments";
 
 export type RoofMode = "solid" | "transparent" | "lifted" | "hidden";
 
@@ -127,7 +127,18 @@ function Wall({
   } else {
     parts.push(<Box key="w" size={[length, height, t]} position={[0, height / 2, 0]} color={color} />);
   }
-  if (ornament) parts.push(<WallBand key="band" length={length} height={height} t={t} />);
+  if (ornament && door) {
+    // jendela persegi di kiri & kanan pintu (tampak depan Meten di dataset)
+    const side = (length - doorW) / 2;
+    if (side > 0.9)
+      [-1, 1].forEach((sx) =>
+        parts.push(
+          <group key={`win${sx}`} position={[sx * (doorW / 2 + side / 2), Math.min(height * 0.62, 1.35), t / 2 + 0.01]}>
+            <SquareWindow size={Math.min(0.55, side * 0.35)} depth={0.05} />
+          </group>
+        )
+      );
+  }
   if (reinforced) {
     const n = Math.max(2, Math.ceil(length / 3) + 1);
     linspace(-length / 2 + 0.08, length / 2 - 0.08, n).forEach((x, i) =>
@@ -143,13 +154,13 @@ function Wall({
   );
 }
 
-function RoofMaterial({ color, mode, side = THREE.DoubleSide }: { color: string; mode: RoofMode; side?: THREE.Side }) {
+function RoofMaterial({ color, mode, side = THREE.DoubleSide, smooth = false }: { color: string; mode: RoofMode; side?: THREE.Side; smooth?: boolean }) {
   const transparent = mode === "transparent";
   return (
     <meshStandardMaterial
       color={color}
       side={side}
-      flatShading
+      flatShading={!smooth}
       roughness={0.95}
       transparent={transparent}
       opacity={transparent ? 0.28 : 1}
@@ -167,6 +178,7 @@ function Roof({
   mode,
   gableColor,
   gableInset = 0,
+  profile = "flat",
 }: {
   kind: "hip" | "gable" | "gableZ";
   W: number;
@@ -176,31 +188,33 @@ function Roof({
   mode: RoofMode;
   gableColor?: string;
   gableInset?: number;
+  /** profil lereng (lihat roof-geometry.ts): flare = alang-alang, dome = kubah ijuk, ogive = jineng */
+  profile?: RoofProfile;
 }) {
   const geo = useMemo(() => {
-    if (kind === "hip") return hipRoof(W, D, rise);
-    return gableRoof(W, D, rise, kind === "gableZ");
-  }, [kind, W, D, rise]);
+    if (kind === "hip") return curvedHipRoof(W, D, rise, profile);
+    return curvedGableRoof(W, D, rise, kind === "gableZ", profile);
+  }, [kind, W, D, rise, profile]);
   const ends = useMemo(() => {
     if (kind === "hip") return null;
     const alongZ = kind === "gableZ";
     const L = alongZ ? D : W;
     const S = alongZ ? W : D;
-    const k = 1 - (2 * gableInset) / Math.max(S, 0.1);
-    return gableEnds((S / 2) * k, rise * k, L / 2 - gableInset, alongZ);
-  }, [kind, W, D, rise, gableInset]);
+    return curvedGableEnds(S / 2, rise, L / 2 - gableInset, gableInset, profile, alongZ).geometry;
+  }, [kind, W, D, rise, gableInset, profile]);
   if (mode === "hidden") return null;
+  const smooth = profile !== "flat";
   return (
     <group>
       <mesh geometry={geo} castShadow receiveShadow>
-        <RoofMaterial color={color} mode={mode} />
+        <RoofMaterial color={color} mode={mode} smooth={smooth} />
       </mesh>
       {/* tebal atap (alang-alang/ijuk tebal) */}
-      <mesh geometry={geo} position={[0, -0.14, 0]} scale={[0.995, 1, 0.995]}>
-        <RoofMaterial color={new THREE.Color(color).multiplyScalar(0.55).getStyle()} mode={mode} />
+      <mesh geometry={geo} position={[0, -0.16, 0]} scale={[0.99, 1, 0.99]}>
+        <RoofMaterial color={new THREE.Color(color).multiplyScalar(0.55).getStyle()} mode={mode} smooth={smooth} />
       </mesh>
       {ends && (
-        <mesh geometry={ends} position={[0, gableInset * Math.tan(Math.atan2(rise, (kind === "gableZ" ? W : D) / 2)), 0]}>
+        <mesh geometry={ends}>
           <RoofMaterial color={gableColor ?? C.kayu} mode={mode} />
         </mesh>
       )}
@@ -226,7 +240,7 @@ function Pelinggih({ s, baseH, bodyH, roofMode, showMitigation, ornament = false
       <Box size={[bodyS, bodyH, bodyS]} position={[0, baseH + bodyH / 2, 0]} color={C.shrine} />
       <Box size={[bodyS * 0.45, bodyH * 0.6, 0.03]} position={[0, baseH + bodyH * 0.45, bodyS / 2 + 0.016]} color={C.prada} />
       <group position={[0, baseH + bodyH, 0]}>
-        <Roof kind="hip" W={roofS} D={roofS} rise={rise} color={ROOF_COLORS.ijuk} mode={roofMode} />
+        <Roof kind="hip" W={roofS} D={roofS} rise={rise} color={ROOF_COLORS.ijuk} mode={roofMode} profile={ornament ? "dome" : "flat"} />
         {ornament && roofMode !== "hidden" && <Murdha s={Math.max(0.12, s * 0.22)} y={rise - 0.02} color="#1c1916" />}
       </group>
       {showMitigation && (
@@ -320,6 +334,10 @@ export function BaliBuilding({
       const ps = Math.min(b.W, b.D) * 0.85;
       content = <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={!!flags.ornaments} />;
     }
+  } else if (isGate && flags.ornaments) {
+    content = (
+      <KoriGate W={b.bodyW} D={b.bodyD} base={s.plinthHeight} h={s.sakaHeight} roofColor={roofColor} showRoof={flags.roofMode !== "hidden"} />
+    );
   } else if (isGate) {
     const opening = Math.min(1.2, b.bodyW * 0.5);
     const pw = (b.bodyW - opening) / 2;
@@ -352,7 +370,6 @@ export function BaliBuilding({
               <Box size={[topW, 0.25, b.bodyD * 1.1]} position={[0, 0.125, 0]} color={C.paras} opacity={flags.roofMode === "transparent" ? 0.3 : 1} />
               <group position={[0, 0.25, 0]}>
                 <Roof kind="hip" W={topW * 1.05} D={b.bodyD * 1.3} rise={0.9} color={roofColor} mode={flags.roofMode} />
-                {flags.ornaments && <RoofOrnaments kind="hip" W={topW * 1.05} D={b.bodyD * 1.3} rise={0.9} roofColor={roofColor} />}
               </group>
             </>
           )}
@@ -385,7 +402,17 @@ export function BaliBuilding({
     content = (
       <group>
         {/* bebaturan + undakan */}
-        {flags.ornaments ? <PepalihanPlinth w={bw} d={bd} h={ph} /> : <Box size={[bw, ph, bd]} position={[0, ph / 2, 0]} color={C.paras} />}
+        {flags.ornaments ? (
+          <PepalihanPlinth
+            w={bw}
+            d={bd}
+            h={ph}
+            xs={Array.from(new Set(cols.map(([x]) => x)))}
+            zs={Array.from(new Set(cols.map(([, z]) => z)))}
+          />
+        ) : (
+          <Box size={[bw, ph, bd]} position={[0, ph / 2, 0]} color={C.paras} />
+        )}
         <Box size={[bw + 0.06, 0.06, bd + 0.06]} position={[0, ph - 0.03, 0]} color={C.floor} />
         {Array.from({ length: steps }, (_, i) => {
           const sh = ph * ((i + 1) / (steps + 1));
@@ -397,7 +424,8 @@ export function BaliBuilding({
         {/* sendi/umpak + saka */}
         {cols.map(([x, z], i) => (
           <group key={i} position={[x, ph, z]}>
-            <Box size={[0.34, umpakH, 0.34]} position={[0, umpakH / 2, 0]} color={C.parasDark} />
+            {flags.ornaments ? <Sendi h={umpakH * 1.6} /> : <Box size={[0.34, umpakH, 0.34]} position={[0, umpakH / 2, 0]} color={C.parasDark} />}
+            {flags.ornaments && !isJineng && <SakaCap y={umpakH + sakaH} />}
             <Box size={isJineng ? [0.2, sakaH, 0.2] : [0.15, sakaH, 0.15]} position={[0, umpakH + sakaH / 2, 0]} color={C.kayu} />
             {flags.ornaments && !isJineng && (
               <Canggahwang
@@ -483,9 +511,32 @@ export function BaliBuilding({
           );
         })()}
 
+        {/* bale-bale di antara tiang untuk bale terbuka (Sakenem/Sakepat di dataset) */}
+        {flags.ornaments &&
+          !isJineng &&
+          Object.values(s.walls).filter(Boolean).length <= 1 &&
+          (() => {
+            const xsU = Array.from(new Set(cols.map(([x]) => x))).sort((a, c) => a - c);
+            const out: React.ReactNode[] = [];
+            for (let i = 0; i < xsU.length - 1; i += 2)
+              out.push(
+                <BaleBale key={i} x0={xsU[i] + 0.12} x1={xsU[i + 1] - 0.12} z0={-spanZ / 2 + 0.12} z1={spanZ / 2 - 0.12} y={ph + 0.45} />
+              );
+            return out;
+          })()}
+
+        {/* emper kecil di atas pintu (Meten) */}
+        {flags.ornaments && s.walls.front && !isJineng && (
+          <group position={[0, ph, spanZ / 2 + 0.08]}>
+            <Emper width={Math.min(2.2, spanX * 0.45)} depth={Math.min(0.9, s.overhang + 0.3)} y={wallH * 0.86} roofColor={roofColor} />
+          </group>
+        )}
+
         {/* atap */}
         <group position={[0, roofBase + roofLift, 0]}>
-          {s.roofType === "limasan" && <Roof kind="hip" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} />}
+          {s.roofType === "limasan" && (
+            <Roof kind="hip" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} profile={flags.ornaments && s.roofMaterial !== "genteng" ? "flare" : "flat"} />
+          )}
           {flags.ornaments && flags.roofMode !== "hidden" && (
             <RoofOrnaments
               kind={s.roofType === "limasan" ? "hip" : s.roofType === "pelana" ? "gable" : "gableZ"}
@@ -496,10 +547,10 @@ export function BaliBuilding({
             />
           )}
           {s.roofType === "pelana" && (
-            <Roof kind="gable" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor={C.bata} gableInset={s.overhang} />
+            <Roof kind="gable" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor={C.bata} gableInset={s.overhang} profile={flags.ornaments && s.roofMaterial !== "genteng" ? "flare" : "flat"} />
           )}
           {s.roofType === "jineng" && (
-            <Roof kind="gableZ" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor="#8a6a3a" gableInset={0.3} />
+            <Roof kind="gableZ" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor="#8a6a3a" gableInset={0.3} profile={flags.ornaments ? "ogive" : "flat"} />
           )}
         </group>
       </group>

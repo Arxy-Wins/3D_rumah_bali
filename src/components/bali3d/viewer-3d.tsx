@@ -21,6 +21,18 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 
 type CamPreset = "atas" | "depan" | "samping" | "perspektif";
 
+/** gambar tampak depan dataset yang dipakai sebagai pembanding per tipe bangunan */
+const ELEV_REF: Partial<Record<string, string>> = {
+  bale_daja: "Meten Sakutus",
+  bale_dangin: "Sakaroras",
+  bale_dauh: "Sakenem Masaka Pandak",
+  bale_delod: "Sakepat",
+  jineng: "Jineng",
+  angkul_angkul: "Kori",
+  merajan: "Gedong V1",
+  penunggun_karang: "Kemulan V1",
+};
+
 /**
  * Fitur mitigasi gempa (peta zona runtuh, titik kumpul, jalur evakuasi, perkuatan,
  * simulasi guncangan, cek per bangunan) disembunyikan dulu. Kode tetap ada di
@@ -336,7 +348,7 @@ export default function Viewer3D({
   const gate = buildings.find((b) => b.type === "angkul_angkul");
   const front = gate ? gate.front : { x: 0, z: 1 };
   const siteSize = tunggal
-    ? Math.max(singleSize.P, singleSize.L, (buildings[0]?.height ?? 4) * 1.2) * 2.3
+    ? Math.max(singleSize.P, singleSize.L, (buildings[0]?.height ?? 4) * 1.2) * 1.7
     : seg && seg.land.length
     ? Math.max(...seg.land.map((p) => Math.hypot(p.x, p.z))) * 2
     : 30;
@@ -588,7 +600,7 @@ export default function Viewer3D({
                 {!tunggal && seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
                 {tunggal && showDims && buildings[0] && <BuildingDims b={buildings[0]} />}
                 <group ref={exportRef}>
-                {!tunggal && seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} />}
+                {!tunggal && seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} ornate={flags.ornaments} />}
                 {buildings.map((b) => (
                   <BaliBuilding
                     key={b.id}
@@ -862,14 +874,22 @@ export default function Viewer3D({
                   </button>
                 )}
               </div>
-              {/* gambar tampak depan dari dataset (opsional, taruh di /public/elevations) */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/elevations/${sel.type}.jpg`}
-                alt={`Tampak depan ${sel.spec.name}`}
-                className="mt-2 w-full rounded border"
-                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-              />
+              {/* gambar tampak depan dari dataset sebagai pembanding */}
+              {ELEV_REF[sel.type] && (
+                <figure className="mt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/elevations/${sel.type}.jpg`}
+                    alt={`Tampak depan ${ELEV_REF[sel.type]}`}
+                    className="w-full rounded border bg-white"
+                    onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
+                  />
+                  <figcaption className="mt-0.5 text-[10px] leading-snug text-gray-400">
+                    Pembanding: tampak depan {ELEV_REF[sel.type]} — Traditional Balinese Building Architecture Dataset
+                    (Mendeley Data, DOI 10.17632/h7hxgwydzj, CC BY 4.0).
+                  </figcaption>
+                </figure>
+              )}
 
               {selReport && (
                 <>

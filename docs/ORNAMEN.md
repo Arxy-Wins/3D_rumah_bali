@@ -1,17 +1,31 @@
 # Ornamen Bali & Mode Bangunan Tunggal
 
-## Yang sudah ada (versi parametrik)
+## Hasil kalibrasi dari dataset
+
+Dicek terhadap gambar tampak & potongan *Traditional Balinese Building Architecture Dataset* (Mendeley Data, DOI 10.17632/h7hxgwydzj, CC BY 4.0):
+
+- Bale hunian (Meten Sakutus, Sakenem, Sakepat, Sakaroras) **tidak memakai murdha/ikut celedu** — bubungan lurus. Tiang Sanga (atap limas) bermahkota kotak kecil. Murdha hanya untuk bangunan suci (Gedong).
+- Atap alang-alang tebal dengan kaki atap melebar/melengkung; atap jineng lengkung runcing; atap gedong berbentuk kubah ijuk.
+- Bebaturan Meten: pilaster segaris saka + panel persegi; tinggi 1,0 m (Potongan A-A: tanah −100, lantai ±00, bubungan +350). Sakaroras: tanah −60, bubungan +400.
+- Meten: emper kecil di atas pintu + jendela persegi di dinding depan. Sakenem: sendi bulat + bale-bale di antara tiang.
+- Kori: badan seperti candi (pilaster sayap bertingkat, motif kotak, kepala bertingkat, atap limas berpuncak datar); tembok penyengker berpilaster dengan mahkota.
+
+Gambar tampak depan dataset ada di `public/elevations/` dan tampil sebagai pembanding saat bangunan diklik.
+
+## Ornamen yang sudah ada (versi parametrik)
 
 Semua ornamen dibuat dari bentuk dasar di `src/components/bali3d/ornaments.tsx`, ukurannya **mengikuti ukuran bangunan**, jadi panjang × lebar × tinggi (dan tabel kesesuaian jarak) tidak berubah.
 
 | Ornamen | Letak |
 | --- | --- |
-| Pepalihan | profil bertingkat bebaturan |
-| Patra | pita ukiran di badan bebaturan, atas dinding, atas pintu, ambang angkul-angkul |
-| Canggahwang | kepala saka |
-| Murdha | puncak atap bale & pelinggih |
-| Ikut celedu | dua ujung bubungan |
-| Kori | bingkai prada + daun pintu berukir |
+| Bebaturan pilaster + panel | bale hunian |
+| Atap melengkung (flare / kubah / lengkung runcing) | bale / pelinggih / jineng |
+| Bubungan lurus, mahkota kotak (limas) | bale hunian |
+| Murdha | bangunan suci (merajan, penunggun karang) |
+| Sendi bulat, kepala saka, canggahwang | saka |
+| Bale-bale | bale terbuka |
+| Emper + jendela persegi + kori berprada | Bale Daja (Meten) |
+| Kori bergaya candi + penyengker berpilaster | angkul-angkul & tembok |
 
 Tombol **Ornamen** (mode Kompleks) untuk menyalakan/mematikan — matikan kalau perangkat terasa berat.
 

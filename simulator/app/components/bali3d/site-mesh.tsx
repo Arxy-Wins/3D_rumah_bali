@@ -6,6 +6,7 @@ import { Line } from "@react-three/drei";
 import type { Vec2 } from "../../lib/bali3d/segmentation";
 import type { PlacedBuilding } from "../../lib/bali3d/layout";
 import type { SiteReport } from "../../lib/bali3d/seismic";
+import { WallPilaster } from "./ornaments";
 
 const WALL_H = 1.8;
 const WALL_T = 0.22;
@@ -36,10 +37,13 @@ export function Penyengker({
   land,
   gate,
   reinforced,
+  ornate = false,
 }: {
   land: Vec2[];
   gate: PlacedBuilding | undefined;
   reinforced: boolean;
+  /** pilaster bermahkota + kaki tembok, seperti gambar Kori di dataset */
+  ornate?: boolean;
 }) {
   const segments = useMemo(() => {
     const out: { a: Vec2; b: Vec2 }[] = [];
@@ -85,6 +89,20 @@ export function Penyengker({
               <boxGeometry args={[len + WALL_T + 0.06, 0.12, WALL_T + 0.08]} />
               <meshStandardMaterial color={reinforced ? "#8e9296" : "#bdb4a3"} />
             </mesh>
+            {ornate && (
+              <mesh position={[0, 0.18, 0]} receiveShadow>
+                <boxGeometry args={[len + WALL_T, 0.36, WALL_T + 0.14]} />
+                <meshStandardMaterial color="#bdb4a3" />
+              </mesh>
+            )}
+            {ornate &&
+              ((m) => Array.from({ length: m }, (_, k) => -len / 2 + (len * k) / (m - 1)))(Math.max(2, Math.round(len / 3.2) + 1)).map(
+                (x, k) => (
+                  <group key={`p${k}`} position={[x, 0, 0]}>
+                    <WallPilaster h={WALL_H + 0.25} />
+                  </group>
+                )
+              )}
             {reinforced &&
               Array.from({ length: n }, (_, k) => -len / 2 + (len * k) / (n - 1)).map((x, k) => (
                 <mesh key={k} position={[x, WALL_H / 2, 0]}>

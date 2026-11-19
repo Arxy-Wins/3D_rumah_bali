@@ -14,8 +14,15 @@
  *   - Ikut celedu : ujung bubungan yang melengkung ke atas
  *   - Kori        : pintu kayu dengan bingkai prada (emas)
  *
- * Bentuk & proporsi masih perkiraan umum; untuk detail yang akurat, isi
- * data/katalog-ornamen.csv dan sesuaikan parameter di file ini.
+ * KALIBRASI DATASET (Traditional Balinese Building Architecture Dataset, CC BY 4.0):
+ *  - bale hunian (Meten, Sakenem, Sakepat, Tiang Sanga): TANPA murdha/ikut celedu,
+ *    bubungan lurus; Tiang Sanga (atap limas) bermahkota kotak kecil
+ *  - murdha hanya untuk bangunan suci (Gedong/pelinggih)
+ *  - bebaturan Meten: pilaster di sudut & tiang + panel persegi menjorok, tinggi ±1 m
+ *  - Meten: emper kecil di atas pintu, jendela persegi di dinding depan
+ *  - Sakenem: sendi bulat, bale-bale di antara tiang
+ *  - Kori: badan seperti candi, pilaster sayap bertingkat, motif kotak, atap limas
+ * Lihat data/katalog-ornamen.csv untuk daftar & sumbernya.
  */
 import React, { useMemo } from "react";
 import * as THREE from "three";
@@ -149,30 +156,126 @@ function PatraSides({ w, d, h, y }: { w: number; d: number; h: number; y: number
   );
 }
 
-/** bebaturan berprofil pepalihan: kaki – pelipit – badan (berpatra) – pelipit – kepala */
-export function PepalihanPlinth({ w, d, h }: { w: number; d: number; h: number }) {
-  const parts: [number, number, string][] = [
-    // [tinggi relatif, tambahan lebar, warna]
-    [0.22, 0.16, ORN.parasDark],
-    [0.07, 0.08, ORN.parasLight],
-    [0.42, 0, ORN.paras],
-    [0.07, 0.08, ORN.parasLight],
-    [0.22, 0.14, ORN.paras],
-  ];
-  let y = 0;
+/**
+ * bebaturan: kaki – badan (pilaster + panel menjorok) – kepala, seperti tampak depan
+ * Meten Sakutus di dataset. xs/zs = posisi pilaster (biasanya segaris saka).
+ */
+export function PepalihanPlinth({ w, d, h, xs = [], zs = [] }: { w: number; d: number; h: number; xs?: number[]; zs?: number[] }) {
+  const kaki = h * 0.14;
+  const kepala = h * 0.16;
+  const body = h - kaki - kepala;
+  const pw = Math.min(0.32, w * 0.08); // lebar pilaster
+  const px = Array.from(new Set([-w / 2 + pw / 2, ...xs, w / 2 - pw / 2].map((v) => +v.toFixed(3)))).sort((a, b) => a - b);
+  const pz = Array.from(new Set([-d / 2 + pw / 2, ...zs, d / 2 - pw / 2].map((v) => +v.toFixed(3)))).sort((a, b) => a - b);
+  const yb = kaki + body / 2;
+  const out = 0.05; // pilaster menonjol
+  const panels: React.ReactNode[] = [];
+  const pil: React.ReactNode[] = [];
+  // sisi depan & belakang
+  for (const sz of [1, -1]) {
+    px.forEach((x, i) => {
+      pil.push(<B key={`px${sz}${i}`} s={[pw, body, out]} p={[x, yb, sz * (d / 2 + out / 2)]} c={ORN.parasLight} />);
+      if (i < px.length - 1) {
+        const a = x + pw / 2;
+        const b2 = px[i + 1] - pw / 2;
+        const pwid = b2 - a;
+        if (pwid > 0.35 && body > 0.3) {
+          // bingkai + panel lebih gelap (kesan menjorok ke dalam)
+          panels.push(<B key={`pf${sz}${i}`} s={[pwid - 0.12, body * 0.68, 0.012]} p={[(a + b2) / 2, yb, sz * (d / 2 + 0.006)]} c={ORN.parasDark} />);
+          panels.push(<B key={`pi${sz}${i}`} s={[pwid - 0.24, body * 0.5, 0.014]} p={[(a + b2) / 2, yb, sz * (d / 2 + 0.008)]} c={ORN.paras} />);
+        }
+      }
+    });
+  }
+  // sisi kiri & kanan
+  for (const sx of [1, -1]) {
+    pz.forEach((z, i) => {
+      pil.push(<B key={`pz${sx}${i}`} s={[out, body, pw]} p={[sx * (w / 2 + out / 2), yb, z]} c={ORN.parasLight} />);
+      if (i < pz.length - 1) {
+        const a = z + pw / 2;
+        const b2 = pz[i + 1] - pw / 2;
+        const pwid = b2 - a;
+        if (pwid > 0.35 && body > 0.3) {
+          panels.push(<B key={`qf${sx}${i}`} s={[0.012, body * 0.68, pwid - 0.12]} p={[sx * (w / 2 + 0.006), yb, (a + b2) / 2]} c={ORN.parasDark} />);
+          panels.push(<B key={`qi${sx}${i}`} s={[0.014, body * 0.5, pwid - 0.24]} p={[sx * (w / 2 + 0.008), yb, (a + b2) / 2]} c={ORN.paras} />);
+        }
+      }
+    });
+  }
   return (
     <group>
-      {parts.map(([fh, add, c], i) => {
-        const hh = fh * h;
-        const el = (
-          <group key={i}>
-            <B s={[w + add, hh, d + add]} p={[0, y + hh / 2, 0]} c={c} />
-            {i === 2 && h >= 0.35 && <PatraSides w={w} d={d} h={hh * 0.8} y={y + hh / 2} />}
-          </group>
-        );
-        y += hh;
-        return el;
-      })}
+      <B s={[w + 0.18, kaki, d + 0.18]} p={[0, kaki / 2, 0]} c={ORN.parasDark} />
+      <B s={[w, body, d]} p={[0, yb, 0]} c={ORN.paras} />
+      {pil}
+      {panels}
+      <B s={[w + 0.14, kepala * 0.45, d + 0.14]} p={[0, kaki + body + kepala * 0.225, 0]} c={ORN.parasLight} />
+      <B s={[w + 0.06, kepala * 0.55, d + 0.06]} p={[0, h - kepala * 0.275, 0]} c={ORN.paras} />
+    </group>
+  );
+}
+
+/** sendi (alas saka) berbentuk bulat seperti gambar Sakenem */
+let sendiGeo: THREE.LatheGeometry | null = null;
+export function Sendi({ h }: { h: number }) {
+  if (!sendiGeo) {
+    const pts = [
+      [0.0, 0],
+      [0.19, 0],
+      [0.19, 0.06],
+      [0.15, 0.09],
+      [0.2, 0.32],
+      [0.17, 0.55],
+      [0.1, 0.68],
+      [0.1, 1.0],
+      [0.0, 1.0],
+    ].map(([x, y]) => new THREE.Vector2(x, y));
+    sendiGeo = new THREE.LatheGeometry(pts, 14);
+  }
+  return <mesh geometry={sendiGeo} scale={[1, h, 1]} material={mat(ORN.parasDark)} castShadow />;
+}
+
+/** kepala saka (canggah) — blok kecil di bawah lambang */
+export function SakaCap({ y }: { y: number }) {
+  return (
+    <group position={[0, y, 0]}>
+      <B s={[0.24, 0.06, 0.24]} p={[0, -0.03, 0]} c={ORN.kayuDark} />
+      <B s={[0.19, 0.1, 0.19]} p={[0, -0.11, 0]} c={ORN.kayu} />
+    </group>
+  );
+}
+
+/** bale-bale (tempat tidur/duduk kayu) di antara tiang, seperti Sakenem */
+export function BaleBale({ x0, x1, z0, z1, y }: { x0: number; x1: number; z0: number; z1: number; y: number }) {
+  const w = x1 - x0;
+  const d = z1 - z0;
+  return (
+    <group position={[(x0 + x1) / 2, 0, (z0 + z1) / 2]}>
+      <B s={[w, 0.07, d]} p={[0, y, 0]} c={ORN.kayu} />
+      <B s={[w + 0.04, 0.09, 0.07]} p={[0, y - 0.07, d / 2]} c={ORN.kayuDark} />
+      {[-1, 1].map((sx) => [-1, 1].map((sz) => <B key={`${sx}${sz}`} s={[0.07, y, 0.07]} p={[sx * (w / 2 - 0.05), y / 2, sz * (d / 2 - 0.05)]} c={ORN.kayuDark} />))}
+    </group>
+  );
+}
+
+/** emper kecil di atas pintu Meten */
+export function Emper({ width, depth, y, roofColor }: { width: number; depth: number; y: number; roofColor: string }) {
+  const tilt = 0.32;
+  return (
+    <group position={[0, y, 0]}>
+      <B s={[width, 0.14, depth]} p={[0, -Math.sin(tilt) * depth * 0.5, depth / 2]} r={[tilt, 0, 0]} c={roofColor} />
+      {[-1, 1].map((sx) => (
+        <B key={sx} s={[0.1, y, 0.1]} p={[sx * (width / 2 - 0.12), -y / 2 - Math.sin(tilt) * depth * 0.9, depth - 0.12]} c={ORN.kayu} />
+      ))}
+    </group>
+  );
+}
+
+/** jendela persegi kecil berbingkai (dinding Meten, motif Kori) */
+export function SquareWindow({ size, depth, color = ORN.kayuDark, frame = ORN.kayu }: { size: number; depth: number; color?: string; frame?: string }) {
+  return (
+    <group>
+      <B s={[size, size, depth]} p={[0, 0, 0]} c={frame} />
+      <B s={[size * 0.62, size * 0.62, depth + 0.01]} p={[0, 0, 0]} c={color} />
     </group>
   );
 }
@@ -242,24 +345,35 @@ export function RidgeCap({ from, to, s, color = ORN.ijuk }: { from: [number, num
   );
 }
 
-/** ornamen atap sesuai bentuk atap */
+/** ornamen atap sesuai bentuk atap. sacred=true → murdha (bangunan suci) */
 export function RoofOrnaments({
   kind,
   W,
   D,
   rise,
   roofColor,
+  sacred = false,
 }: {
   kind: "hip" | "gable" | "gableZ" | "pyramid";
   W: number;
   D: number;
   rise: number;
   roofColor: string;
+  sacred?: boolean;
 }) {
   const s = Math.max(0.18, Math.min(0.55, Math.min(W, D) * 0.13));
-  const capColor = roofColor === ORN.ijuk ? "#1c1916" : ORN.ijuk;
-  if (kind === "pyramid" || (kind === "hip" && Math.abs(W - D) < 0.05)) {
-    return <Murdha s={s * 1.1} y={rise - 0.02} />;
+  const capColor = roofColor === ORN.ijuk ? "#1c1916" : "#5a4526";
+  const pyramid = kind === "pyramid" || (kind === "hip" && Math.abs(W - D) < 0.05);
+  if (pyramid) {
+    return sacred ? (
+      <Murdha s={s * 1.1} y={rise - 0.02} />
+    ) : (
+      // mahkota kotak kecil di puncak atap limas (lihat Tiang Sanga di dataset)
+      <group position={[0, rise - 0.05, 0]}>
+        <B s={[s * 0.55, s * 0.5, s * 0.55]} p={[0, s * 0.25, 0]} c={capColor} />
+        <B s={[s * 0.7, s * 0.08, s * 0.7]} p={[0, s * 0.52, 0]} c={capColor} />
+      </group>
+    );
   }
   let a: [number, number, number];
   let b: [number, number, number];
@@ -285,10 +399,12 @@ export function RoofOrnaments({
   const u: [number, number] = [dx / l, dz / l];
   return (
     <group>
+      {/* bubungan lurus dengan ujung sedikit menebal (seperti gambar Meten/Sakenem) */}
       <RidgeCap from={a} to={b} s={s} color={capColor} />
-      <IkutCeledu at={b} dir={u} s={s} color={capColor} />
-      <IkutCeledu at={a} dir={[-u[0], -u[1]]} s={s} color={capColor} />
-      <Murdha s={s} y={rise + s * 0.08} />
+      {[a, b].map((p, i) => (
+        <B key={i} s={[s * 0.35, s * 0.32, s * 0.35]} p={[p[0] + (i ? 1 : -1) * u[0] * 0.05, p[1] + s * 0.12, p[2] + (i ? 1 : -1) * u[1] * 0.05]} c={capColor} />
+      ))}
+      {sacred && <Murdha s={s} y={rise + s * 0.08} />}
     </group>
   );
 }
@@ -318,6 +434,102 @@ export function KoriFrame({ doorW, doorH, wallH, t }: { doorW: number; doorH: nu
       )}
       {/* daun pintu berukir */}
       <mesh geometry={UNIT} scale={[doorW * 0.96, doorH * 0.96, 0.03]} position={[0, doorH / 2, t / 2 + 0.035]} material={patraMaterial(doorW * 0.5, "#8a5a30")} />
+    </group>
+  );
+}
+
+/**
+ * Kori / angkul-angkul seperti gambar "Kori" di dataset: kaki bertingkat, badan
+ * dengan lubang pintu, dua motif kotak, pilaster sayap bertingkat, kepala bertingkat,
+ * atap limas dengan puncak datar. Lokal: lebar W (sumbu x), tebal D (z), depan = +z.
+ */
+export function KoriGate({ W, D, base, h, roofColor, showRoof }: { W: number; D: number; base: number; h: number; roofColor: string; showRoof: boolean }) {
+  const bata = "#b4553a";
+  const open = Math.min(1.1, W * 0.42);
+  const pier = (W - open) / 2;
+  const doorH = Math.min(2.2, h * 0.78);
+  const headH = h - doorH;
+  const y0 = base;
+  const wing = (k: number, hh: number) =>
+    [-1, 1].map((sx) => (
+      <group key={`${k}${sx}`} position={[sx * (W / 2 + 0.14 + k * 0.24), y0, 0]}>
+        <B s={[0.24, hh, D * (0.8 - k * 0.15)]} p={[0, hh / 2, 0]} c={bata} />
+        <B s={[0.32, 0.1, D * (0.9 - k * 0.15)]} p={[0, hh + 0.05, 0]} c={ORN.paras} />
+        <B s={[0.2, 0.14, D * (0.6 - k * 0.15)]} p={[0, hh + 0.17, 0]} c={ORN.paras} />
+      </group>
+    ));
+  const roofW = W * 1.25;
+  const roofRise = Math.max(0.6, roofW * 0.32);
+  return (
+    <group>
+      {/* kaki bertingkat */}
+      <B s={[W + 1.1, base * 0.5, D + 0.5]} p={[0, base * 0.25, 0]} c={ORN.parasDark} />
+      <B s={[W + 0.7, base * 0.5, D + 0.3]} p={[0, base * 0.75, 0]} c={ORN.paras} />
+      {/* badan: dua pier + kepala di atas pintu */}
+      {[-1, 1].map((sx) => (
+        <group key={sx}>
+          <B s={[pier, h, D]} p={[sx * (open / 2 + pier / 2), y0 + h / 2, 0]} c={bata} />
+          <group position={[sx * (open / 2 + pier / 2), y0 + doorH * 0.78, D / 2 + 0.01]}>
+            <SquareWindow size={Math.min(0.32, pier * 0.6)} depth={0.03} color={ORN.parasDark} frame={ORN.paras} />
+          </group>
+        </group>
+      ))}
+      <B s={[open, headH, D]} p={[0, y0 + doorH + headH / 2, 0]} c={bata} />
+      {/* lengkung kecil di sudut atas lubang pintu */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * (open / 2 - 0.09), y0 + doorH - 0.09, 0]} rotation={[Math.PI / 2, 0, 0]} material={mat(bata)}>
+          <cylinderGeometry args={[0.1, 0.1, D, 10, 1, false, sx > 0 ? 0 : Math.PI / 2, Math.PI / 2]} />
+        </mesh>
+      ))}
+      {wing(0, h * 0.62)}
+      {wing(1, h * 0.42)}
+      {/* kepala bertingkat */}
+      <B s={[W + 0.12, 0.14, D + 0.12]} p={[0, y0 + h + 0.07, 0]} c={ORN.paras} />
+      <B s={[W * 0.86, 0.36, D * 0.9]} p={[0, y0 + h + 0.32, 0]} c={bata} />
+      <B s={[W * 1.0, 0.12, D * 1.05]} p={[0, y0 + h + 0.56, 0]} c={ORN.paras} />
+      {showRoof && (
+        <group position={[0, y0 + h + 0.62, 0]}>
+          <mesh geometry={pyramidFlatTop(roofW, D * 1.5, roofRise, 0.4)} material={mat(roofColor)} castShadow />
+          <B s={[roofW * 0.4, 0.12, D * 1.5 * 0.4]} p={[0, roofRise + 0.06, 0]} c={ORN.paras} />
+        </group>
+      )}
+    </group>
+  );
+}
+
+/** limas terpancung (puncak datar), untuk atap kori */
+function pyramidFlatTop(W: number, D: number, rise: number, topFrac: number) {
+  const g = new THREE.CylinderGeometry(Math.SQRT1_2 * topFrac, Math.SQRT1_2, 1, 4, 1, false);
+  g.rotateY(Math.PI / 4);
+  g.scale(W, rise, D);
+  g.translate(0, rise / 2, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** pilaster tembok penyengker dengan mahkota bulat (seperti gambar Kori) */
+let finialGeo: THREE.LatheGeometry | null = null;
+export function WallPilaster({ h }: { h: number }) {
+  if (!finialGeo) {
+    finialGeo = new THREE.LatheGeometry(
+      [
+        [0, 0],
+        [0.17, 0],
+        [0.2, 0.06],
+        [0.12, 0.12],
+        [0.18, 0.2],
+        [0.08, 0.3],
+        [0.08, 0.36],
+        [0, 0.38],
+      ].map(([x, y]) => new THREE.Vector2(x, y)),
+      10
+    );
+  }
+  return (
+    <group>
+      <B s={[0.34, h, 0.34]} p={[0, h / 2, 0]} c="#b0573c" />
+      <B s={[0.42, 0.08, 0.42]} p={[0, h + 0.04, 0]} c={ORN.paras} />
+      <mesh geometry={finialGeo} position={[0, h + 0.08, 0]} material={mat(ORN.paras)} castShadow />
     </group>
   );
 }

@@ -1,10 +1,18 @@
 ornamen,bangunan,letak (titik tempel),ukuran relatif,material/warna,status di 3D,sumber referensi,catatan
-pepalihan,"bale_daja;bale_dangin;bale_dauh;bale_delod;paon",bebaturan (kaki-pelipit-badan-pelipit-kepala),"tinggi tiap tingkat: 22%/7%/42%/7%/22% tinggi bebaturan",paras abu,sudah (parametrik),,cek proporsi dari gambar tampak depan dataset
-patra (pita ukiran),"bebaturan;dinding;atas pintu;angkul-angkul",badan bebaturan & pita atas dinding,"tinggi pita ≤ 0,3 m; 1 motif per ±0,6 m",paras/bata,sudah (pola sementara buatan sendiri),,ganti dengan tekstur dari foto/gambar patra asli (patra punggel/sari/cina)
-canggahwang,bale bertiang,kepala saka di bawah lambang,"panjang ±0,42 m",kayu + ujung prada,sudah (parametrik),,
-murdha,semua bale & pelinggih,puncak/bubungan atap,"±13% lebar atap (0,18–0,55 m)",tanah liat/paras + mustika prada,sudah (parametrik),,
-ikut celedu,bale beratap limasan/pelana,dua ujung bubungan,"±13% lebar atap",ijuk/hitam,sudah (parametrik),,
-kori (pintu),bale_daja,dinding depan,"lebar pintu ≤0,9 m, tinggi ≤1,9 m",kayu + bingkai prada,sudah (parametrik),,
-karang boma,angkul-angkul,di atas lubang gerbang,,paras,belum,,perlu model 3D (Blender) atau foto relief
-karang goak / karang tapel,bebaturan/sudut,sudut bebaturan,,paras,belum,,
-ukiran saka (lelengis),bale bertiang,badan saka,,kayu,belum,,bisa pakai tekstur
+atap alang-alang melengkung (kaki atap melebar),"bale_daja;bale_dangin;bale_dauh;bale_delod;paon",lereng atap,"profil flare: tinggi = s^1,35",alang-alang,sudah,"Dataset: Meten Sakutus, Sakenem Masaka Pandak, Sakepat (Tampak Depan)",
+bubungan lurus + ujung menebal,bale hunian beratap limasan/pelana,bubungan,"tebal ±13% lebar atap",ijuk/alang-alang,sudah,"Dataset: Meten Sakutus, Sakenem (Tampak Depan)",bale hunian TIDAK memakai murdha/ikut celedu
+mahkota kotak kecil,bale beratap limas (Tiang Sanga),puncak atap,"±7% lebar atap",ijuk,sudah,Dataset: Tiang Sanga (Tampak Depan),
+murdha,bangunan suci (pelinggih/gedong di merajan & penunggun karang),puncak atap,"±13% lebar atap",ijuk + mustika prada,sudah,Dataset: Gedong V1 (Tampak Depan),hanya bangunan suci
+atap kubah ijuk,pelinggih/gedong,atap,profil dome,ijuk,sudah,Dataset: Gedong V1,
+atap lengkung runcing,jineng,atap,"profil ogive: lebar = 1 - s^1,8",alang-alang,sudah,Dataset: Jineng (Tampak Depan & Potongan A-A),
+bebaturan pilaster + panel,bale hunian,bebaturan (kaki - badan - kepala),"kaki 14%, kepala 16% tinggi bebaturan; pilaster segaris saka",paras,sudah,"Dataset: Meten Sakutus (Tampak Depan, Tampak Samping)","tinggi bebaturan Meten 1,0 m (Potongan A-A)"
+emper di atas pintu,bale_daja,dinding depan di atas pintu,"lebar ≤2,2 m",alang-alang + 2 tiang,sudah,Dataset: Meten Sakutus (Tampak Depan),
+jendela persegi,bale_daja,dinding depan kiri-kanan pintu,"±0,55 m",kayu,sudah,Dataset: Meten Sakutus (Tampak Depan),
+sendi bulat,bale bertiang,alas saka,"tinggi ±0,35 m",paras,sudah,Dataset: Sakenem Masaka Pandak (Tampak Depan),
+kepala saka (canggah),bale bertiang,ujung atas saka,,kayu,sudah,"Dataset: Sakenem, Sakepat",
+bale-bale,bale terbuka (dinding ≤1 sisi),di antara tiang,"tinggi ±0,45 m dari lantai",kayu,sudah,Dataset: Sakenem Masaka Pandak (Tampak Depan),
+kori (gerbang bergaya candi),angkul_angkul,sisi gerbang,"lubang pintu ≤1,1 m",bata + paras,sudah,Dataset: Kori (Tampak Depan),
+pilaster tembok bermahkota,penyengker,tiap ±3,2 m,,bata + paras,sudah,Dataset: Kori (Tampak Depan),
+patra (pita ukiran),panel atas pintu,di atas pintu,,paras,sudah (pola sementara buatan sendiri),,dataset tidak menggambar ukiran; ganti dengan foto patra asli bila ada
+karang boma,angkul-angkul,di atas lubang gerbang,,paras,belum,,tidak ada di gambar Kori dataset; perlu foto/model Blender
+karang simbar/karang di sudut,gedong/pelinggih,sudut badan,,paras,belum,Dataset: Gedong V1,
