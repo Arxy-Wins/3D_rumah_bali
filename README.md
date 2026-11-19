@@ -17,6 +17,11 @@ Turunan dari:
 
 Detail: [`docs/3D-MITIGASI-GEMPA.md`](docs/3D-MITIGASI-GEMPA.md).
 
+## Alur pakai
+
+- **Tanpa GAN (seperti simulator):** isi *Parameter lahan* di bagian "Model 3D" → **Buat 3D**. Kalau lahan sudah digambar dengan tool Area, bentuknya ikut dipakai (diskalakan ke panjang × lebar).
+- **Dengan GAN:** gambar lahan + jalan → Generate → pilih **Denah GAN** atau **Aturan Asta Kosala Kosali**, lalu cek tabel kesesuaian jarak.
+
 ## Jalankan lokal
 
 ```bash

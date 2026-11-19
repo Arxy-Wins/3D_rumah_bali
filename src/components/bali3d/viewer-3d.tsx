@@ -8,8 +8,8 @@ import { Btn } from "./ui";
 import { Html } from "@react-three/drei";
 import { segmentPlan, type Segmentation } from "../../lib/bali3d/segmentation";
 import { placeBuildings, type SpecOverrides } from "../../lib/bali3d/layout";
-import { type AstaParams, defaultGateSegment, gateSegments, kajaDir } from "../../lib/bali3d/asta-rules";
-import { buildAstaSegmentation, checkCompliance, landExtents, withGate } from "../../lib/bali3d/asta-layout";
+import { type AstaParams, type BaliOrientation, defaultGateSegment, type GateDirection, gateSegments, kajaDir } from "../../lib/bali3d/asta-rules";
+import { buildAstaSegmentation, checkCompliance, landExtents, type LandShape, withGate } from "../../lib/bali3d/asta-layout";
 import { analyzeSite, type CheckStatus, DEFAULT_PARAMS, type SeismicParams } from "../../lib/bali3d/seismic";
 import { BUILDING_SPECS, type BuildingSpec, type RoofMaterial, type WallMaterial } from "../../lib/bali3d/specs";
 import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
@@ -114,16 +114,87 @@ function Compass({ land, kaja }: { land: { x: number; z: number }[]; kaja: { x: 
   );
 }
 
+const DEFAULT_ASTA: AstaParams = {
+  footLength: 26,
+  sideFootLength: 10,
+  landLength: 18,
+  landWidth: 14,
+  gateDirection: "Selatan",
+  orientation: "Bali Selatan",
+};
+
+/** form parameter lahan (sama dengan form Generate / Building Layout) — 3D bisa dibuat tanpa GAN */
+function AstaForm({ value, onSubmit, compact }: { value: AstaParams; onSubmit: (p: AstaParams) => void; compact?: boolean }) {
+  const [v, setV] = useState<AstaParams>(value);
+  useEffect(() => setV(value), [value]);
+  const num = (k: keyof AstaParams, label: string, step = 1) => (
+    <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+      {label}
+      <input
+        type="number"
+        step={step}
+        value={v[k] as number}
+        onChange={(e) => setV({ ...v, [k]: parseFloat(e.target.value) || 0 })}
+        className="h-7 rounded border px-1.5 text-xs text-gray-900"
+      />
+    </label>
+  );
+  const invalid =
+    (v.landLength < 6 && v.landWidth < 7) || (v.landLength < 7 && v.landWidth < 6) || v.landLength === v.landWidth;
+  return (
+    <form
+      className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!invalid) onSubmit(v);
+      }}
+    >
+      {num("footLength", "Panjang telapak kaki (cm)")}
+      {num("sideFootLength", "Lebar telapak kaki (cm)")}
+      {num("landLength", "Panjang lahan (m)", 0.5)}
+      {num("landWidth", "Lebar lahan (m)", 0.5)}
+      <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+        Arah gerbang (jalan)
+        <select className="h-7 rounded border px-1 text-xs text-gray-900" value={v.gateDirection} onChange={(e) => setV({ ...v, gateDirection: e.target.value as GateDirection })}>
+          {["Utara", "Timur", "Selatan", "Barat"].map((d) => (
+            <option key={d}>{d}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+        Orientasi
+        <select className="h-7 rounded border px-1 text-xs text-gray-900" value={v.orientation} onChange={(e) => setV({ ...v, orientation: e.target.value as BaliOrientation })}>
+          <option>Bali Selatan</option>
+          <option>Bali Utara</option>
+        </select>
+      </label>
+      <div className="col-span-full flex items-center justify-between gap-2">
+        <span className="text-[11px] text-red-600">{invalid ? "Lahan minimal 6×7 m dan tidak boleh persegi." : ""}</span>
+        <Btn active type="submit" disabled={invalid}>
+          Buat 3D
+        </Btn>
+      </div>
+    </form>
+  );
+}
+
 export default function Viewer3D({
   image,
   footLength,
-  asta,
+  asta: astaProp,
+  landShape,
 }: {
   image?: CanvasImageSource;
   footLength: number;
   /** input form (Asta Kosala Kosali). Bila ada, mode "Aturan" & cek kesesuaian aktif */
   asta?: AstaParams;
+  /** bentuk lahan yang digambar pengguna (x = timur, z = selatan; satuan bebas) */
+  landShape?: LandShape;
 }) {
+  const [localAsta, setLocalAsta] = useState<AstaParams | null>(null);
+  useEffect(() => setLocalAsta(null), [astaProp]);
+  const asta = localAsta ?? astaProp;
+  const [showForm, setShowForm] = useState(false);
   const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
   const [overrides, setOverrides] = useState<SpecOverrides>({});
   const [params, setParams] = useState<SeismicParams>(DEFAULT_PARAMS);
@@ -155,10 +226,10 @@ export default function Viewer3D({
 
   const mode = layoutMode === "aturan" && asta ? "aturan" : segGan ? "gan" : asta ? "aturan" : "gan";
   const seg: Segmentation | null = useMemo(() => {
-    if (mode === "aturan" && asta) return buildAstaSegmentation(asta, null, gateSeg);
+    if (mode === "aturan" && asta) return buildAstaSegmentation(asta, null, gateSeg, landShape);
     if (segGan && asta) return withGate(segGan, asta, gateSeg);
     return segGan;
-  }, [mode, asta, segGan, gateSeg]);
+  }, [mode, asta, segGan, gateSeg, landShape]);
 
   const buildings = useMemo(() => (seg ? placeBuildings(seg, overrides) : []), [seg, overrides]);
   const site = useMemo(() => (seg ? analyzeSite(seg, buildings, params) : null), [seg, buildings, params]);
@@ -196,12 +267,22 @@ export default function Viewer3D({
 
   if (!source && !asta) {
     return (
-      <div className="w-full rounded-md border border-dashed bg-white p-6 text-center text-sm text-gray-500">
-        Generate denah dulu, atau muat gambar denah hasil (PNG 256×256 berkode warna):
+      <div className="w-full rounded-md border border-dashed bg-white p-4 text-sm text-gray-600">
+        <p className="mb-2 font-medium text-gray-800">Buat 3D langsung dari aturan Asta Kosala Kosali (tanpa GAN)</p>
+        <AstaForm
+          value={DEFAULT_ASTA}
+          onSubmit={(p) => {
+            setLocalAsta(p);
+            setLayoutMode("aturan");
+          }}
+        />
+        <p className="mt-4 text-xs text-gray-500">
+          {landShape ? "Bentuk lahan yang kamu gambar akan dipakai. " : ""}Atau Generate denah dengan GAN, atau muat gambar denah hasil (PNG 256×256 berkode warna):
+        </p>
         <input
           type="file"
           accept="image/png"
-          className="mx-auto mt-3 block text-xs"
+          className="mt-2 block text-xs"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (!f) return;
@@ -365,6 +446,35 @@ export default function Viewer3D({
 
         {/* panel samping */}
         <div className="flex w-full flex-col gap-3 xl:w-[400px]">
+          {!sel && (
+            <div className="rounded-md bg-white p-3 text-sm shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold">Parameter lahan</p>
+                <button className="text-xs text-blue-600 underline" onClick={() => setShowForm((x) => !x)}>
+                  {showForm ? "tutup" : "ubah"}
+                </button>
+              </div>
+              {asta && !showForm && (
+                <p className="text-xs text-gray-500">
+                  {asta.landLength} × {asta.landWidth} m • gerbang {asta.gateDirection} • {asta.orientation} • telapak {asta.footLength}/{asta.sideFootLength} cm
+                  {localAsta ? " (diubah di sini)" : ""}
+                </p>
+              )}
+              {(showForm || !asta) && (
+                <div className="mt-2">
+                  <AstaForm
+                    compact
+                    value={asta ?? DEFAULT_ASTA}
+                    onSubmit={(p) => {
+                      setLocalAsta(p);
+                      setLayoutMode("aturan");
+                      setShowForm(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           {compliance && asta && !sel && (
             <div className="rounded-md bg-white p-3 text-sm shadow-sm">
               <div className="flex items-baseline justify-between">

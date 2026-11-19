@@ -7,7 +7,7 @@
  * selatan untuk Bali Utara (pola sama dengan gambar tataUtara vs tataUtaraBU di API).
  */
 import type { BuildingType, DetectedBuilding, Segmentation, Vec2 } from "./segmentation";
-import { distPointToRect, type PlacedBuilding, rectClearance } from "./layout";
+import { distPointToRect, type PlacedBuilding, pointInPolygon, rectClearance } from "./layout";
 import {
   type AstaParams,
   DISTANCE_RULES,
@@ -83,7 +83,8 @@ function constructAndSolve(
   ns: number,
   d: Record<string, number>,
   sf: number,
-  ms: number
+  ms: number,
+  poly: Vec2[] | null
 ): Partial<Record<BuildingType, Rect>> {
   const S = (t: BuildingType): [number, number] => {
     const [a, b] = sizeOf(t, sizesFrom, sf);
@@ -142,22 +143,92 @@ function constructAndSolve(
   const off = d["kala-penunggun"] / Math.SQRT2;
   rects.penunggun_karang = fit({ u0: off, u1: off + ku, v0: ns - off - kv, v1: ns - off }, ew, ns);
 
+  // lahan tidak persegi (digambar): geser bangunan zona utama secukupnya agar masuk lahan
+  if (poly) {
+    UTAMA.forEach((t) => {
+      if (rects[t]) rects[t] = nudgeInside(rects[t]!, poly, ew, ns);
+    });
+  }
+
   // ---- 8. optimasi: hilangkan tumpang tindih & dekatkan semua jarak ke aturan
-  const solved = optimizeLayout(rects as Record<BuildingType, Rect>, d, ew, ns, gateKeepout(p, gateSegment, ew, ns));
+  const solved = optimizeLayout(rects as Record<BuildingType, Rect>, d, ew, ns, gateKeepout(p, gateSegment, ew, ns), poly);
   (Object.keys(solved) as BuildingType[]).forEach((t) => (rects[t] = solved[t]));
   return rects;
 }
 
 const UTAMA = new Set<BuildingType>(["merajan", "bale_daja", "penunggun_karang"]);
 
-export function buildAstaSegmentation(p: AstaParams, sizesFrom: Segmentation | null, gateSegment: number): Segmentation {
-  const { ew, ns } = landExtents(p);
+/** koordinat lokal (u,v) — x = u (timur), y = v (kaja) */
+const corners = (r: Rect): Vec2[] => [
+  { x: r.u0, z: r.v0 },
+  { x: r.u1, z: r.v0 },
+  { x: r.u1, z: r.v1 },
+  { x: r.u0, z: r.v1 },
+];
+function outsideCount(r: Rect, poly: Vec2[]) {
+  // titik sudut + tengah sisi, dengan sedikit inset agar tembok tidak ikut dihitung
+  const e = 0.15;
+  const cu = (r.u0 + r.u1) / 2;
+  const cv = (r.v0 + r.v1) / 2;
+  const pts = [
+    ...corners({ u0: r.u0 + e, u1: r.u1 - e, v0: r.v0 + e, v1: r.v1 - e }),
+    { x: cu, z: r.v0 + e },
+    { x: cu, z: r.v1 - e },
+    { x: r.u0 + e, z: cv },
+    { x: r.u1 - e, z: cv },
+  ];
+  return pts.filter((q) => !pointInPolygon(q, poly)).length;
+}
+function nudgeInside(r: Rect, poly: Vec2[], ew: number, ns: number): Rect {
+  if (outsideCount(r, poly) === 0) return r;
+  let best = r;
+  let bestScore = Infinity;
+  for (let du = -4; du <= 4.001; du += 0.25) {
+    for (let dv = -4; dv <= 4.001; dv += 0.25) {
+      const c = fit({ u0: r.u0 + du, u1: r.u1 + du, v0: r.v0 + dv, v1: r.v1 + dv }, ew, ns);
+      const score = outsideCount(c, poly) * 100 + Math.hypot(c.u0 - r.u0, c.v0 - r.v0);
+      if (score < bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+  }
+  return best;
+}
+
+export type LandShape = Vec2[]; // titik bebas (x = timur, z = selatan), mis. piksel gambar lahan
+
+export function buildAstaSegmentation(
+  p: AstaParams,
+  sizesFrom: Segmentation | null,
+  gateSegment: number,
+  shape?: LandShape | null
+): Segmentation {
+  let { ew, ns } = landExtents(p);
+  const s = kajaDir(p.orientation).z; // -1: kaja ke utara (-z)
+  // bentuk lahan yang digambar: diskalakan ke ukuran form (sisi terpanjang = ukuran terbesar)
+  let landWorld: Vec2[] | null = null;
+  let poly: Vec2[] | null = null;
+  if (shape && shape.length >= 3) {
+    const xs = shape.map((q) => q.x);
+    const zs = shape.map((q) => q.z);
+    const bw = Math.max(...xs) - Math.min(...xs) || 1;
+    const bh = Math.max(...zs) - Math.min(...zs) || 1;
+    const big = Math.max(p.landLength, p.landWidth);
+    const small = Math.min(p.landLength, p.landWidth);
+    ew = bw >= bh ? big : small;
+    ns = bw >= bh ? small : big;
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const cz = (Math.max(...zs) + Math.min(...zs)) / 2;
+    landWorld = shape.map((q) => ({ x: ((q.x - cx) * ew) / bw, z: ((q.z - cz) * ns) / bh }));
+    poly = landWorld.map((q) => ({ x: q.x + ew / 2, z: s < 0 ? ns / 2 - q.z : q.z + ns / 2 }));
+  }
   const d = ruleDistances(p);
   const sf = clamp(Math.min(ew, ns) / 13, 0.45, 1);
   const notes: string[] = [];
   let rects: Partial<Record<BuildingType, Rect>> = {};
   for (const ms of [1, 0.88, 0.77, 0.68, 0.6]) {
-    rects = constructAndSolve(p, sizesFrom, gateSegment, ew, ns, d, sf, ms);
+    rects = constructAndSolve(p, sizesFrom, gateSegment, ew, ns, d, sf, ms, poly);
     const list = Object.values(rects) as Rect[];
     let worst = Infinity;
     for (let i = 0; i < list.length; i++)
@@ -170,7 +241,6 @@ export function buildAstaSegmentation(p: AstaParams, sizesFrom: Segmentation | n
   }
 
   // ---- ke koordinat dunia
-  const s = kajaDir(p.orientation).z; // -1: kaja ke utara (-z)
   const toWorld = (u: number, v: number): Vec2 => ({ x: u - ew / 2, z: s * (v - ns / 2) });
   const buildings: DetectedBuilding[] = (Object.entries(rects) as [BuildingType, Rect][]).map(([type, r]) => {
     const c = toWorld((r.u0 + r.u1) / 2, (r.v0 + r.v1) / 2);
@@ -189,13 +259,15 @@ export function buildAstaSegmentation(p: AstaParams, sizesFrom: Segmentation | n
     };
   });
 
-  const land: Vec2[] = [
+  const land: Vec2[] = landWorld ?? [
     { x: -ew / 2, z: -ns / 2 },
     { x: ew / 2, z: -ns / 2 },
     { x: ew / 2, z: ns / 2 },
     { x: -ew / 2, z: ns / 2 },
   ];
-  const seg: Segmentation = { metersPerPixel: 0, land, landAreaM2: ew * ns, buildings, width: 0, height: 0, notes };
+  if (landWorld) notes.unshift(`Mengikuti bentuk lahan yang digambar, diskalakan ke ${ew.toFixed(1)} × ${ns.toFixed(1)} m.`);
+  const area = landWorld ? polygonAreaLocal(landWorld) : ew * ns;
+  const seg: Segmentation = { metersPerPixel: 0, land, landAreaM2: area, buildings, width: 0, height: 0, notes };
   return withGate(seg, p, gateSegment, true);
 }
 
@@ -309,12 +381,23 @@ function gateKeepout(p: AstaParams, k: number, ew: number, ns: number): Rect {
 
 const MIN_GAP = 0.8; // jarak bersih minimum antar atap (lorong)
 
+function polygonAreaLocal(poly: Vec2[]) {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    a += p.x * q.z - q.x * p.z;
+  }
+  return Math.abs(a) / 2;
+}
+
 function optimizeLayout(
   init: Record<BuildingType, Rect>,
   d: Record<string, number>,
   ew: number,
   ns: number,
-  keepout: Rect
+  keepout: Rect,
+  poly: Vec2[] | null
 ): Record<BuildingType, Rect> {
   const types = (Object.keys(init) as BuildingType[]).filter((t) => t !== "angkul_angkul");
   // zona utama (merajan, bale daja, penunggun karang) dikunci di posisi aturan (Uma, Guru, Kala);
@@ -374,6 +457,10 @@ function optimizeLayout(
       if (natah && !UTAMA.has(types[i])) {
         const gn = clearance(A, natah);
         if (gn < 0) c += 30 + 40 * -gn;
+      }
+      if (poly) {
+        const out = outsideCount(A, poly);
+        if (out) c += 80 * out;
       }
       const gk = clearance(A, keepout);
       if (gk < 0.3) c += 40 * (0.3 - gk) ** 2 + (gk < 0 ? 100 : 0);

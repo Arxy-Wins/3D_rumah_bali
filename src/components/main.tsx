@@ -82,6 +82,24 @@ export default function Main() {
 
   const [isLoading, setIsLoading] = React.useState(false);
 
+  // bentuk lahan yang digambar (titik Konva + transformasi) untuk model 3D mode Aturan
+  const landShape = React.useMemo(() => {
+    if (!area?.closed || !area.points || area.points.length < 6) return undefined;
+    const pts = area.points as number[];
+    const sx = area.scaleX ?? 1;
+    const sy = area.scaleY ?? 1;
+    const rot = ((area.rotation ?? 0) * Math.PI) / 180;
+    const ox = area.x ?? 0;
+    const oy = area.y ?? 0;
+    const out: { x: number; z: number }[] = [];
+    for (let i = 0; i + 1 < pts.length; i += 2) {
+      const px = pts[i] * sx;
+      const py = pts[i + 1] * sy;
+      out.push({ x: ox + px * Math.cos(rot) - py * Math.sin(rot), z: oy + px * Math.sin(rot) + py * Math.cos(rot) });
+    }
+    return out;
+  }, [area]);
+
   // const [remainingOutputArea, setRemainingOutputArea] = React.useState(0);
   // const [surfaceArea, setSurfaceArea] = React.useState(0);
   // const [remainingGroundTruthArea, setRemainingGroundTruthArea] =
@@ -497,6 +515,7 @@ export default function Main() {
               ? { footLength, sideFootLength, landLength, landWidth, gateDirection: direction, orientation }
               : undefined
           }
+          landShape={landShape}
         />
       </div>
       <div className="flex flex-col items-center gap-4 mt-8">
