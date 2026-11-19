@@ -262,8 +262,9 @@ function AstaForm({
   const Lw = +r.bboxW.toFixed(2); // panjang (ke dalam)
   const Ww = +r.bboxU.toFixed(2); // lebar (sepanjang jalan)
   const tooSmall = (Lw < 6 && Ww < 7) || (Lw < 7 && Ww < 6);
-  const square = land.mode === "persegi" && Lw === Ww;
-  const msg = r.error ?? (tooSmall ? "Lahan minimal 6×7 m." : square ? "Lahan persegi panjang tidak boleh persegi (aturan tabel)." : "");
+  // aturan asli GitHub (BaliBuildingLocation / form Generate): minimal 6×7, panjang ≠ lebar
+  const square = Lw === Ww;
+  const msg = r.error ?? (tooSmall ? "Lahan minimal 6×7 m." : square ? "Panjang dan lebar lahan tidak boleh sama (aturan asli)." : "");
   const invalid = !!msg;
   const fields: Record<LandMode, React.ReactNode> = {
     persegi: (

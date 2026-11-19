@@ -64,4 +64,4 @@ Form "Parameter lahan" punya pilihan **Bentuk lahan**:
 | Bentuk L | ukuran lahan + potongan di pojok belakang | lahan berpotongan |
 | Titik sudut bebas | koordinat tiap pojok (kanan, dalam) | bentuk apa pun |
 
-Kanan/kiri dilihat dari jalan menghadap lahan; sisi depan = sisi gerbang. Tier S1–S3 tetap dari kotak luar (panjang × lebar terbesar), posisi gerbang = sisi depan ÷ 9 (seperti API), tetapi batas lahan, jarak ke tembok, dan penyengker mengikuti bentuk aslinya.
+Kanan/kiri dilihat dari jalan menghadap lahan; sisi depan = sisi gerbang. Rumus, pengali, tier, syarat lahan (minimal 6×7, panjang ≠ lebar) tetap aturan asli GitHub; tier dari kotak luar (panjang × lebar), posisi gerbang = sisi depan ÷ 9 (seperti API), tetapi batas lahan, jarak ke tembok, dan penyengker mengikuti bentuk aslinya.
