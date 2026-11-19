@@ -1,8 +1,8 @@
-export default function LoadingOverlay() {
+export default function LoadingOverlay({ text }: { text?: string }) {
   return (
-    <div className="absolute bg-white bg-opacity-60 z-10 h-full w-full flex items-center justify-center">
+    <div className="fixed inset-0 bg-white bg-opacity-60 z-20 flex items-center justify-center">
       <div className="flex items-center">
-        <span className="text-3xl mr-4">Loading</span>
+        <span className="text-3xl mr-4">{text ?? "Loading"}</span>
         <svg
           className="animate-spin h-8 w-8 text-gray-800"
           xmlns="http://www.w3.org/2000/svg"

@@ -32,6 +32,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// model GAN cukup diunduh sekali per kunjungan (sebelumnya diunduh ulang tiap Generate)
+let modelPromise: Promise<import("@tensorflow/tfjs").LayersModel> | null = null;
+
 export default function Main() {
   const stageRef = React.useRef<Konva.Stage>(null);
   const isDrawing = React.useRef(false);
@@ -81,6 +84,7 @@ export default function Main() {
 
 
   const [isLoading, setIsLoading] = React.useState(false);
+  const [loadingText, setLoadingText] = React.useState<string>();
 
   // bentuk lahan yang digambar (titik Konva + transformasi) untuk model 3D mode Aturan
   const landShape = React.useMemo(() => {
@@ -230,7 +234,14 @@ export default function Main() {
     // ✅ client-only import
     const tf = await import("@tensorflow/tfjs");
 
-    const model = await tf.loadLayersModel("/model/model.json");
+    if (!modelPromise) {
+      modelPromise = tf.loadLayersModel("/model/model.json", {
+        onProgress: (f) => setLoadingText(`Mengunduh model ${Math.round(f * 100)}%`),
+      });
+      modelPromise.catch(() => (modelPromise = null));
+    }
+    const model = await modelPromise;
+    setLoadingText("Membuat denah…");
     const outputTensor = tf.tidy(() => {
       let img = tf.browser.fromPixels(canvasElement).toFloat();
       img = tf.image.resizeBilinear(img, [256, 256]);
@@ -246,6 +257,7 @@ export default function Main() {
     setOutputImage({ image: canvas });
 
     setIsLoading(false);
+    setLoadingText(undefined);
   };
 
 
@@ -302,7 +314,7 @@ export default function Main() {
   return (
     <div className="min-h-screen container flex flex-col items-center justify-center p-8">
       <p className="text-2xl font-bold mb-8">Bali Building Plan Design</p>
-      {isLoading && <LoadingOverlay />}
+      {isLoading && <LoadingOverlay text={loadingText} />}
       <input
         ref={inputRef}
         type="file"

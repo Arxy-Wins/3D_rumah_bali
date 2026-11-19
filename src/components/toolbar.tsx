@@ -50,7 +50,7 @@ export default function Toolbar({
   }
 
   return (
-    <div className="static md:fixed z-10 left-10 flex md:flex-col items-center justify-center gap-2">
+    <div className="static md:fixed z-10 left-10 md:top-1/2 md:-translate-y-1/2 flex md:flex-col items-center justify-center gap-2">
       <div className="flex items-center gap-1">
         <p className="font-medium">ToolBox</p>
         <button onClick={() => toggle(false)} title="Sembunyikan ToolBox" className="rounded p-0.5 text-gray-500 hover:bg-gray-200">
