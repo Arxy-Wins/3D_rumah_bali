@@ -410,9 +410,10 @@ function optimizeLayout(
 
   // natah (halaman tengah) harus tetap terbuka
   const daja0 = init.bale_daja;
+  // natah = ruang di antara bale daja dan bale delod (jarak Rudra), bagian tengah lahan
   const natah: Rect | null =
-    daja0 && daja0.v0 - 1 > ns * 0.3
-      ? { u0: ew * 0.33, u1: ew * 0.67, v0: Math.max(ns * 0.3, daja0.v0 - 1 - ns * 0.3), v1: daja0.v0 - 1 }
+    daja0 && d.rudra > 1.8
+      ? { u0: ew * 0.33, u1: ew * 0.67, v0: daja0.v0 - d.rudra + 0.8, v1: daja0.v0 - 0.8 }
       : null;
   const pair = (a: BuildingType, b: BuildingType) => (cur[a] && cur[b] ? clearance(cur[a], cur[b]) : null);
   const ruleTerms: [string, () => number | null][] = [
@@ -510,7 +511,37 @@ function optimizeLayout(
     }
   }
   }
-  return bestState as Record<BuildingType, Rect>;
+  // pemolesan: turun-bukit deterministik dengan langkah mengecil, supaya jarak
+  // yang memang bisa dipenuhi benar-benar pas (annealing saja sering berhenti "hampir")
+  types.forEach((t) => (cur[t] = { ...bestState[t] }));
+  types.forEach(refreshOut);
+  let curBest = cost();
+  const dirs = [
+    [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
+  ];
+  for (const step of [1, 0.5, 0.25, 0.1, 0.04, 0.02]) {
+    for (let pass = 0; pass < 25; pass++) {
+      let improved = false;
+      for (const t of movable) {
+        for (const [a, b] of dirs) {
+          const r = cur[t];
+          cur[t] = fit({ u0: r.u0 + a * step, u1: r.u1 + a * step, v0: r.v0 + b * step, v1: r.v1 + b * step }, ew, ns);
+          const prevOut = outCache[t];
+          refreshOut(t);
+          const nc = cost();
+          if (nc < curBest - 1e-6) {
+            curBest = nc;
+            improved = true;
+          } else {
+            cur[t] = r;
+            outCache[t] = prevOut;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+  }
+  return snapshot() as Record<BuildingType, Rect>;
 }
 
 // ---------------- cek kesesuaian ----------------
