@@ -9,6 +9,7 @@ import type { BuildingReport } from "../../lib/bali3d/seismic";
 import { ROOF_COLORS, roofBaseHeight, roofRise } from "../../lib/bali3d/specs";
 import { gableEnds, gableRoof, hipRoof } from "./roof-geometry";
 import { useShake } from "./shake";
+import { Canggahwang, KoriFrame, Murdha, PepalihanPlinth, RoofOrnaments, WallBand, patraMaterial } from "./ornaments";
 
 export type RoofMode = "solid" | "transparent" | "lifted" | "hidden";
 
@@ -16,6 +17,8 @@ export interface ViewFlags {
   roofMode: RoofMode;
   showMitigation: boolean;
   showLabels: boolean;
+  /** tampilkan ornamen Bali (pepalihan, patra, canggahwang, murdha, ikut celedu, kori) */
+  ornaments?: boolean;
   mitigationApplied: boolean;
   /** tampilkan panjang × lebar (garis atap) di label bangunan */
   showDims?: boolean;
@@ -94,6 +97,7 @@ function Wall({
   color,
   door,
   reinforced,
+  ornament = false,
 }: {
   length: number;
   height: number;
@@ -102,6 +106,7 @@ function Wall({
   color: string;
   door?: boolean;
   reinforced: boolean;
+  ornament?: boolean;
 }) {
   const t = 0.15;
   const doorW = Math.min(0.9, length * 0.4);
@@ -113,11 +118,16 @@ function Wall({
       <Box key="l" size={[side, height, t]} position={[-(doorW + side) / 2, height / 2, 0]} color={color} />,
       <Box key="r" size={[side, height, t]} position={[(doorW + side) / 2, height / 2, 0]} color={color} />,
       <Box key="top" size={[doorW, height - doorH, t]} position={[0, doorH + (height - doorH) / 2, 0]} color={color} />,
-      <Box key="door" size={[doorW, doorH, 0.05]} position={[0, doorH / 2, 0.06]} color={C.kayuDark} />
+      ornament ? (
+        <KoriFrame key="kori" doorW={doorW} doorH={doorH} wallH={height} t={t} />
+      ) : (
+        <Box key="door" size={[doorW, doorH, 0.05]} position={[0, doorH / 2, 0.06]} color={C.kayuDark} />
+      )
     );
   } else {
     parts.push(<Box key="w" size={[length, height, t]} position={[0, height / 2, 0]} color={color} />);
   }
+  if (ornament) parts.push(<WallBand key="band" length={length} height={height} t={t} />);
   if (reinforced) {
     const n = Math.max(2, Math.ceil(length / 3) + 1);
     linspace(-length / 2 + 0.08, length / 2 - 0.08, n).forEach((x, i) =>
@@ -199,7 +209,7 @@ function Roof({
 }
 
 /** Pelinggih (bangunan suci kecil): bebaturan paras, rong kayu, atap ijuk */
-function Pelinggih({ s, baseH, bodyH, roofMode, showMitigation }: { s: number; baseH: number; bodyH: number; roofMode: RoofMode; showMitigation: boolean }) {
+function Pelinggih({ s, baseH, bodyH, roofMode, showMitigation, ornament = false }: { s: number; baseH: number; bodyH: number; roofMode: RoofMode; showMitigation: boolean; ornament?: boolean }) {
   const bodyS = s * 0.68;
   const roofS = s * 1.15;
   const rise = (roofS / 2) * Math.tan((55 * Math.PI) / 180);
@@ -207,11 +217,17 @@ function Pelinggih({ s, baseH, bodyH, roofMode, showMitigation }: { s: number; b
     <group>
       <Box size={[s, baseH * 0.15, s]} position={[0, baseH * 0.075, 0]} color={C.parasDark} />
       <Box size={[s * 0.82, baseH * 0.7, s * 0.82]} position={[0, baseH * 0.15 + baseH * 0.35, 0]} color={C.paras} />
+      {ornament && (
+        <mesh scale={[s * 0.83, baseH * 0.4, s * 0.83]} position={[0, baseH * 0.5, 0]} material={patraMaterial(s * 0.8)}>
+          <boxGeometry args={[1, 1, 1]} />
+        </mesh>
+      )}
       <Box size={[s * 0.95, baseH * 0.15, s * 0.95]} position={[0, baseH * 0.925, 0]} color={C.parasDark} />
       <Box size={[bodyS, bodyH, bodyS]} position={[0, baseH + bodyH / 2, 0]} color={C.shrine} />
       <Box size={[bodyS * 0.45, bodyH * 0.6, 0.03]} position={[0, baseH + bodyH * 0.45, bodyS / 2 + 0.016]} color={C.prada} />
       <group position={[0, baseH + bodyH, 0]}>
         <Roof kind="hip" W={roofS} D={roofS} rise={rise} color={ROOF_COLORS.ijuk} mode={roofMode} />
+        {ornament && roofMode !== "hidden" && <Murdha s={Math.max(0.12, s * 0.22)} y={rise - 0.02} color="#1c1916" />}
       </group>
       {showMitigation && (
         <mesh position={[0, baseH + 0.05, 0]}>
@@ -295,14 +311,14 @@ export function BaliBuilding({
           <Box size={[side, wallH, 0.2]} position={[(gap + side) / 2, wallH / 2, b.D / 2 - 0.1]} color={C.paras} />
           {xs.map((x, i) => (
             <group key={i} position={[x, 0, -b.D / 2 + ps * 0.75 + 0.2]}>
-              <Pelinggih s={ps} baseH={s.plinthHeight * (i === Math.floor(n / 2) ? 1.15 : 1)} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} />
+              <Pelinggih s={ps} baseH={s.plinthHeight * (i === Math.floor(n / 2) ? 1.15 : 1)} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={!!flags.ornaments} />
             </group>
           ))}
         </group>
       );
     } else {
       const ps = Math.min(b.W, b.D) * 0.85;
-      content = <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} />;
+      content = <Pelinggih s={ps} baseH={s.plinthHeight} bodyH={s.sakaHeight} roofMode={flags.roofMode} showMitigation={showMit} ornament={!!flags.ornaments} />;
     }
   } else if (isGate) {
     const opening = Math.min(1.2, b.bodyW * 0.5);
@@ -322,6 +338,11 @@ export function BaliBuilding({
           </group>
         ))}
         <Box size={[b.bodyW, lintelH, b.bodyD]} position={[0, s.plinthHeight + h + lintelH / 2, 0]} color={C.bata} />
+        {flags.ornaments && (
+          <mesh scale={[b.bodyW + 0.02, lintelH * 0.6, b.bodyD + 0.02]} position={[0, s.plinthHeight + h + lintelH / 2, 0]} material={patraMaterial(b.bodyW, "#e3c9a8")}>
+            <boxGeometry args={[1, 1, 1]} />
+          </mesh>
+        )}
         {flags.mitigationApplied && (
           <Box size={[b.bodyW + 0.02, 0.16, b.bodyD + 0.02]} position={[0, s.plinthHeight + h + 0.08, 0]} color={C.beton} />
         )}
@@ -331,6 +352,7 @@ export function BaliBuilding({
               <Box size={[topW, 0.25, b.bodyD * 1.1]} position={[0, 0.125, 0]} color={C.paras} opacity={flags.roofMode === "transparent" ? 0.3 : 1} />
               <group position={[0, 0.25, 0]}>
                 <Roof kind="hip" W={topW * 1.05} D={b.bodyD * 1.3} rise={0.9} color={roofColor} mode={flags.roofMode} />
+                {flags.ornaments && <RoofOrnaments kind="hip" W={topW * 1.05} D={b.bodyD * 1.3} rise={0.9} roofColor={roofColor} />}
               </group>
             </>
           )}
@@ -363,7 +385,7 @@ export function BaliBuilding({
     content = (
       <group>
         {/* bebaturan + undakan */}
-        <Box size={[bw, ph, bd]} position={[0, ph / 2, 0]} color={C.paras} />
+        {flags.ornaments ? <PepalihanPlinth w={bw} d={bd} h={ph} /> : <Box size={[bw, ph, bd]} position={[0, ph / 2, 0]} color={C.paras} />}
         <Box size={[bw + 0.06, 0.06, bd + 0.06]} position={[0, ph - 0.03, 0]} color={C.floor} />
         {Array.from({ length: steps }, (_, i) => {
           const sh = ph * ((i + 1) / (steps + 1));
@@ -377,6 +399,15 @@ export function BaliBuilding({
           <group key={i} position={[x, ph, z]}>
             <Box size={[0.34, umpakH, 0.34]} position={[0, umpakH / 2, 0]} color={C.parasDark} />
             <Box size={isJineng ? [0.2, sakaH, 0.2] : [0.15, sakaH, 0.15]} position={[0, umpakH + sakaH / 2, 0]} color={C.kayu} />
+            {flags.ornaments && !isJineng && (
+              <Canggahwang
+                top={s.sakaHeight}
+                dirs={[
+                  ...(Math.abs(x) > 0.01 ? ([[-Math.sign(x), 0]] as [number, number][]) : []),
+                  ...(Math.abs(z) > 0.01 ? ([[0, -Math.sign(z)]] as [number, number][]) : []),
+                ]}
+              />
+            )}
             {showMit && (
               <mesh position={[0, umpakH + 0.12, 0]}>
                 <boxGeometry args={[0.2, 0.08, 0.2]} />
@@ -415,10 +446,10 @@ export function BaliBuilding({
         {/* dinding */}
         {!isJineng && (
           <group position={[0, ph, 0]}>
-            {s.walls.back && <Wall length={spanX + 0.15} height={wallH} position={[0, 0, -spanZ / 2]} rotationY={0} color={wallColor} reinforced={reinforced} />}
-            {s.walls.front && <Wall length={spanX + 0.15} height={wallH} position={[0, 0, spanZ / 2]} rotationY={0} color={wallColor} door reinforced={reinforced} />}
-            {s.walls.left && <Wall length={spanZ + 0.15} height={wallH} position={[-spanX / 2, 0, 0]} rotationY={Math.PI / 2} color={wallColor} reinforced={reinforced} />}
-            {s.walls.right && <Wall length={spanZ + 0.15} height={wallH} position={[spanX / 2, 0, 0]} rotationY={Math.PI / 2} color={wallColor} reinforced={reinforced} />}
+            {s.walls.back && <Wall length={spanX + 0.15} height={wallH} position={[0, 0, -spanZ / 2]} rotationY={0} color={wallColor} reinforced={reinforced} ornament={!!flags.ornaments} />}
+            {s.walls.front && <Wall length={spanX + 0.15} height={wallH} position={[0, 0, spanZ / 2]} rotationY={0} color={wallColor} door reinforced={reinforced} ornament={!!flags.ornaments} />}
+            {s.walls.left && <Wall length={spanZ + 0.15} height={wallH} position={[-spanX / 2, 0, 0]} rotationY={Math.PI / 2} color={wallColor} reinforced={reinforced} ornament={!!flags.ornaments} />}
+            {s.walls.right && <Wall length={spanZ + 0.15} height={wallH} position={[spanX / 2, 0, 0]} rotationY={Math.PI / 2} color={wallColor} reinforced={reinforced} ornament={!!flags.ornaments} />}
           </group>
         )}
 
@@ -455,6 +486,15 @@ export function BaliBuilding({
         {/* atap */}
         <group position={[0, roofBase + roofLift, 0]}>
           {s.roofType === "limasan" && <Roof kind="hip" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} />}
+          {flags.ornaments && flags.roofMode !== "hidden" && (
+            <RoofOrnaments
+              kind={s.roofType === "limasan" ? "hip" : s.roofType === "pelana" ? "gable" : "gableZ"}
+              W={b.W}
+              D={b.D}
+              rise={rise}
+              roofColor={roofColor}
+            />
+          )}
           {s.roofType === "pelana" && (
             <Roof kind="gable" W={b.W} D={b.D} rise={rise} color={roofColor} mode={flags.roofMode} gableColor={C.bata} gableInset={s.overhang} />
           )}

@@ -143,3 +143,26 @@ export function RuleDistanceLines({ buildings, land, asta }: { buildings: Placed
     </group>
   );
 }
+
+/** garis ukur satu bangunan: panjang (depan), lebar (samping), tinggi (vertikal) */
+export function BuildingDims({ b }: { b: PlacedBuilding }) {
+  const off = 0.9;
+  const W = b.W;
+  const D = b.D;
+  const H = b.height;
+  const front = { a: { x: -W / 2, z: D / 2 + off }, b: { x: W / 2, z: D / 2 + off } };
+  const side = { a: { x: W / 2 + off, z: -D / 2 }, b: { x: W / 2 + off, z: D / 2 } };
+  const cx = W / 2 + off;
+  const cz = D / 2 + off;
+  return (
+    <group position={[b.center.x, 0, b.center.z]} rotation={[0, b.phi, 0]}>
+      <DimLine a={front.a} b={front.b} color="#1d4ed8" label={`P ${fmtM(W)}`} />
+      <DimLine a={side.a} b={side.b} color="#1d4ed8" label={`L ${fmtM(D)}`} />
+      <Line points={[new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx, H, cz)]} color="#1d4ed8" lineWidth={1.6} />
+      <Line points={[new THREE.Vector3(cx - 0.25, H, cz), new THREE.Vector3(cx + 0.25, H, cz)]} color="#1d4ed8" lineWidth={1.6} />
+      <Html position={[cx, H / 2, cz]} center style={{ pointerEvents: "none" }}>
+        <div className="whitespace-nowrap rounded bg-white/90 px-1 text-[11px] font-semibold text-blue-700 shadow">T {fmtM(H)}</div>
+      </Html>
+    </group>
+  );
+}

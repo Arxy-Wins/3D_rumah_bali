@@ -25,7 +25,7 @@ type Rect = { u0: number; u1: number; v0: number; v1: number };
 const WALL = 0.3;
 
 /** ukuran garis atap default (m): [arah timur-barat, arah kaja-kelod] */
-const DEFAULT_SIZE: Record<BuildingType, [number, number]> = {
+export const DEFAULT_SIZE: Record<BuildingType, [number, number]> = {
   bale_daja: [6.0, 3.6],
   bale_dangin: [3.4, 5.0],
   bale_dauh: [3.4, 5.0],

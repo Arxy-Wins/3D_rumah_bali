@@ -1,0 +1,10 @@
+ornamen,bangunan,letak (titik tempel),ukuran relatif,material/warna,status di 3D,sumber referensi,catatan
+pepalihan,"bale_daja;bale_dangin;bale_dauh;bale_delod;paon",bebaturan (kaki-pelipit-badan-pelipit-kepala),"tinggi tiap tingkat: 22%/7%/42%/7%/22% tinggi bebaturan",paras abu,sudah (parametrik),,cek proporsi dari gambar tampak depan dataset
+patra (pita ukiran),"bebaturan;dinding;atas pintu;angkul-angkul",badan bebaturan & pita atas dinding,"tinggi pita ≤ 0,3 m; 1 motif per ±0,6 m",paras/bata,sudah (pola sementara buatan sendiri),,ganti dengan tekstur dari foto/gambar patra asli (patra punggel/sari/cina)
+canggahwang,bale bertiang,kepala saka di bawah lambang,"panjang ±0,42 m",kayu + ujung prada,sudah (parametrik),,
+murdha,semua bale & pelinggih,puncak/bubungan atap,"±13% lebar atap (0,18–0,55 m)",tanah liat/paras + mustika prada,sudah (parametrik),,
+ikut celedu,bale beratap limasan/pelana,dua ujung bubungan,"±13% lebar atap",ijuk/hitam,sudah (parametrik),,
+kori (pintu),bale_daja,dinding depan,"lebar pintu ≤0,9 m, tinggi ≤1,9 m",kayu + bingkai prada,sudah (parametrik),,
+karang boma,angkul-angkul,di atas lubang gerbang,,paras,belum,,perlu model 3D (Blender) atau foto relief
+karang goak / karang tapel,bebaturan/sudut,sudut bebaturan,,paras,belum,,
+ukiran saka (lelengis),bale bertiang,badan saka,,kayu,belum,,bisa pakai tekstur

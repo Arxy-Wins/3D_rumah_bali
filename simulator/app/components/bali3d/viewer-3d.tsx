@@ -9,15 +9,17 @@ import { Html } from "@react-three/drei";
 import { segmentPlan, type Segmentation } from "../../lib/bali3d/segmentation";
 import { placeBuildings, type SpecOverrides } from "../../lib/bali3d/layout";
 import { type AstaParams, type BaliOrientation, defaultGateSegment, type GateDirection, gateSegments, kajaDir } from "../../lib/bali3d/asta-rules";
-import { buildAstaSegmentation, checkCompliance, landExtents, type LandShape, withGate } from "../../lib/bali3d/asta-layout";
+import { buildAstaSegmentation, checkCompliance, DEFAULT_SIZE, landExtents, type LandShape, withGate } from "../../lib/bali3d/asta-layout";
 import { analyzeSite, type CheckStatus, DEFAULT_PARAMS, type SeismicParams } from "../../lib/bali3d/seismic";
 import { BUILDING_SPECS, type BuildingSpec, type RoofMaterial, type WallMaterial } from "../../lib/bali3d/specs";
 import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
 import { AssemblyMarker, CollapseZone, EvacuationRoutes, Ground, Penyengker, SafeArea } from "./site-mesh";
 import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
-import { LandDimensions, RuleDistanceLines } from "./dimensions";
+import { BuildingDims, LandDimensions, RuleDistanceLines } from "./dimensions";
+import type { BuildingType, DetectedBuilding } from "../../lib/bali3d/segmentation";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 
-type CamPreset = "atas" | "depan" | "perspektif";
+type CamPreset = "atas" | "depan" | "samping" | "perspektif";
 
 /**
  * Fitur mitigasi gempa (peta zona runtuh, titik kumpul, jalur evakuasi, perkuatan,
@@ -71,24 +73,26 @@ function FocusRig({ target }: { target: { x: number; z: number; h: number; front
   return null;
 }
 
-function CameraRig({ preset, front, size, nonce }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number }) {
+function CameraRig({ preset, front, size, nonce, eyeY = 6.5 }: { preset: CamPreset; front: { x: number; z: number }; size: number; nonce: number; eyeY?: number }) {
   const { camera, controls, invalidate } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; update: () => void } | null;
     invalidate: () => void;
   };
   useEffect(() => {
-    const d = Math.max(size, 12);
+    const d = Math.max(size, 6);
+    const ty = preset === "depan" || preset === "samping" ? Math.min(2, eyeY * 0.5) : 0;
     if (preset === "atas") camera.position.set(0, d * 1.55, 0.01);
-    else if (preset === "depan") camera.position.set(front.x * d * 1.25, 6.5, front.z * d * 1.25);
+    else if (preset === "depan") camera.position.set(front.x * d * 1.25, eyeY, front.z * d * 1.25);
+    else if (preset === "samping") camera.position.set(front.z * d * 1.25, eyeY, -front.x * d * 1.25);
     else camera.position.set(d * 0.62, d * 0.6, d * 0.78);
-    camera.lookAt(0, preset === "depan" ? 2 : 0, 0);
+    camera.lookAt(0, ty, 0);
     if (controls) {
-      controls.target.set(0, preset === "depan" ? 2 : 0, 0);
+      controls.target.set(0, ty, 0);
       controls.update();
     }
     invalidate(); // frameloop "demand": gambar ulang sekali setelah kamera dipindah
-  }, [preset, front.x, front.z, size, camera, controls, nonce, invalidate]);
+  }, [preset, front.x, front.z, size, camera, controls, nonce, invalidate, eyeY]);
   return null;
 }
 
@@ -244,6 +248,12 @@ export default function Viewer3D({
   const [shaking, setShaking] = useState(false);
   const [shadowsOn, setShadowsOn] = useState(false);
   const [showDims, setShowDims] = useState(true);
+  const [showOrn, setShowOrn] = useState(true);
+  // mode bangunan tunggal: satu bangunan, detail penuh (untuk dilihat satu per satu)
+  const [viewMode, setViewMode] = useState<"kompleks" | "tunggal">("kompleks");
+  const [singleType, setSingleType] = useState<BuildingType>("bale_daja");
+  const [singleSize, setSingleSize] = useState<{ P: number; L: number }>({ P: 6, L: 3.6 });
+  const exportRef = useRef<THREE.Group>(null);
   const [showDist, setShowDist] = useState(false);
   const shakeRef = useRef<ShakeState>({ active: false, start: 0, duration: 12, intensity: 0, freq: 2 });
 
@@ -280,7 +290,38 @@ export default function Viewer3D({
     setComputing(false);
   }, [mode, asta, segGan, gateSeg, landShape]);
 
-  const buildings = useMemo(() => (seg ? placeBuildings(seg, overrides) : []), [seg, overrides]);
+  const tunggal = viewMode === "tunggal";
+  const singleSeg: Segmentation = useMemo(() => {
+    const { P, L } = singleSize;
+    const b: DetectedBuilding = {
+      id: `${singleType}-tunggal`,
+      type: singleType,
+      center: { x: 0, z: 0 },
+      axisU: { x: 1, z: 0 },
+      axisV: { x: 0, z: 1 },
+      lenU: P,
+      lenV: L,
+      areaM2: P * L,
+      pixelCount: 0,
+    };
+    const hw = P / 2 + 2.5;
+    const hd = L / 2 + 2.5;
+    return {
+      metersPerPixel: 0,
+      land: [
+        { x: -hw, z: -hd },
+        { x: hw, z: -hd },
+        { x: hw, z: hd },
+        { x: -hw, z: hd },
+      ],
+      landAreaM2: 4 * hw * hd,
+      buildings: [b],
+      width: 0,
+      height: 0,
+    };
+  }, [singleType, singleSize]);
+  const activeSeg = tunggal ? singleSeg : seg;
+  const buildings = useMemo(() => (activeSeg ? placeBuildings(activeSeg, overrides) : []), [activeSeg, overrides]);
   const site = useMemo(
     () => (ENABLE_GEMPA && seg ? analyzeSite(seg, buildings, params) : null),
     [seg, buildings, params]
@@ -294,22 +335,45 @@ export default function Viewer3D({
 
   const gate = buildings.find((b) => b.type === "angkul_angkul");
   const front = gate ? gate.front : { x: 0, z: 1 };
-  const siteSize = seg && seg.land.length ? Math.max(...seg.land.map((p) => Math.hypot(p.x, p.z))) * 2 : 30;
+  const siteSize = tunggal
+    ? Math.max(singleSize.P, singleSize.L, (buildings[0]?.height ?? 4) * 1.2) * 2.3
+    : seg && seg.land.length
+    ? Math.max(...seg.land.map((p) => Math.hypot(p.x, p.z))) * 2
+    : 30;
 
   const flags: ViewFlags = {
     roofMode,
     showMitigation,
-    showLabels,
     mitigationApplied: params.mitigationApplied,
-    showDims,
+    showDims: showDims && !tunggal,
+    showLabels: showLabels && !tunggal,
+    ornaments: tunggal || showOrn,
   };
 
-  const sel = buildings.find((b) => b.id === selected) ?? null;
+  const sel = tunggal ? buildings[0] ?? null : buildings.find((b) => b.id === selected) ?? null;
   const focusTarget = useMemo(
-    () => (sel ? { x: sel.center.x, z: sel.center.z, h: sel.height, front: sel.front } : null),
+    () => (sel && !tunggal ? { x: sel.center.x, z: sel.center.z, h: sel.height, front: sel.front } : null),
     [sel?.id] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const selReport = site?.buildings.find((r) => r.id === selected) ?? null;
+  const selReport = site?.buildings.find((r) => r.id === sel?.id) ?? null;
+
+  const exportGLB = () => {
+    const obj = exportRef.current;
+    if (!obj) return;
+    new GLTFExporter().parse(
+      obj,
+      (res) => {
+        const blob = new Blob([res as ArrayBuffer], { type: "model/gltf-binary" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${tunggal ? singleType : "rumah-bali"}.glb`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      (err) => console.error(err),
+      { binary: true }
+    );
+  };
 
   const updateSpec = (patch: Partial<BuildingSpec>) => {
     if (!sel) return;
@@ -372,8 +436,34 @@ export default function Viewer3D({
         </Toggle>
           </>
         )}
+        <span className="text-xs font-semibold text-gray-500">Mode</span>
+        <Toggle
+          active={!tunggal}
+          onClick={() => {
+            setViewMode("kompleks");
+            setPreset("atas");
+            setCamNonce((n) => n + 1);
+          }}
+        >
+          Kompleks
+        </Toggle>
+        <Toggle
+          active={tunggal}
+          onClick={() => {
+            if (sel) {
+              setSingleType(sel.type);
+              setSingleSize({ P: +Math.max(sel.W, sel.D).toFixed(2), L: +Math.min(sel.W, sel.D).toFixed(2) });
+            }
+            setViewMode("tunggal");
+            setPreset("perspektif");
+            setCamNonce((n) => n + 1);
+          }}
+          title="Lihat satu bangunan dengan detail penuh"
+        >
+          Bangunan tunggal
+        </Toggle>
         <span className="ml-2 text-xs font-semibold text-gray-500">Tampak</span>
-        {(["atas", "depan", "perspektif"] as CamPreset[]).map((p) => (
+        {(["atas", "depan", "samping", "perspektif"] as CamPreset[]).map((p) => (
           <Toggle
             key={p}
             active={preset === p}
@@ -434,7 +524,15 @@ export default function Viewer3D({
         <Toggle active={showDims} onClick={() => setShowDims((v) => !v)} title="Panjang × lebar bangunan dan ukuran lahan">
           Ukuran
         </Toggle>
-        <Toggle active={showDist} disabled={!asta} onClick={() => setShowDist((v) => !v)} title="Garis jarak aturan Asta Kosala Kosali (hijau sesuai, merah tidak)">
+        {!tunggal && (
+          <Toggle active={showOrn} onClick={() => setShowOrn((v) => !v)} title="Ornamen Bali (matikan kalau terasa berat)">
+            Ornamen
+          </Toggle>
+        )}
+        <Btn onClick={exportGLB} title="Unduh model 3D (.glb) untuk Blender / laporan">
+          Unduh 3D
+        </Btn>
+        <Toggle active={showDist && !tunggal} disabled={!asta || tunggal} onClick={() => setShowDist((v) => !v)} title="Garis jarak aturan Asta Kosala Kosali (hijau sesuai, merah tidak)">
           Jarak
         </Toggle>
         <Toggle active={shadowsOn} onClick={() => setShadowsOn((v) => !v)} title="Bayangan lebih bagus tapi lebih berat">
@@ -484,21 +582,24 @@ export default function Viewer3D({
                 shadow-camera-bottom={-30}
               />
               <GroundMotion onEnd={() => setShaking(false)}>
-                {seg && <Ground land={seg.land} />}
-                {seg && <Compass land={seg.land} kaja={kajaDir(asta?.orientation ?? "Bali Selatan")} />}
-                {seg && showDims && <LandDimensions land={seg.land} />}
-                {seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
-                {seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} />}
+                {activeSeg && <Ground land={activeSeg.land} />}
+                {!tunggal && seg && <Compass land={seg.land} kaja={kajaDir(asta?.orientation ?? "Bali Selatan")} />}
+                {!tunggal && seg && showDims && <LandDimensions land={seg.land} />}
+                {!tunggal && seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
+                {tunggal && showDims && buildings[0] && <BuildingDims b={buildings[0]} />}
+                <group ref={exportRef}>
+                {!tunggal && seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} />}
                 {buildings.map((b) => (
                   <BaliBuilding
                     key={b.id}
                     b={b}
                     report={site?.buildings.find((r) => r.id === b.id)}
                     flags={flags}
-                    selected={selected === b.id}
-                    onSelect={setSelected}
+                    selected={!tunggal && selected === b.id}
+                    onSelect={tunggal ? () => {} : setSelected}
                   />
                 ))}
+                </group>
                 {showMitigation && site && (
                   <>
                     {buildings
@@ -512,7 +613,13 @@ export default function Viewer3D({
                 )}
               </GroundMotion>
               <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.05} />
-              <CameraRig preset={preset} front={front} size={siteSize} nonce={camNonce} />
+              <CameraRig
+                preset={preset}
+                front={tunggal ? buildings[0]?.front ?? { x: 0, z: 1 } : front}
+                size={siteSize}
+                nonce={camNonce}
+                eyeY={tunggal ? Math.max(1.6, (buildings[0]?.height ?? 4) * 0.55) : 6.5}
+              />
               <FocusRig target={focusTarget} />
             </ShakeProvider>
           </Canvas>
@@ -537,6 +644,49 @@ export default function Viewer3D({
 
         {/* panel samping */}
         <div className="flex w-full flex-col gap-3 xl:w-[400px]">
+          {tunggal && (
+            <div className="rounded-md bg-white p-3 text-sm shadow-sm">
+              <p className="font-semibold">Bangunan tunggal</p>
+              <p className="text-xs text-gray-500">Satu bangunan dengan ornamen penuh. Ukuran = garis atap (seperti denah 2D).</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="col-span-2 flex flex-col gap-0.5 text-[11px] text-gray-600">
+                  Tipe bangunan
+                  <select
+                    className="h-7 rounded border px-1 text-xs text-gray-900"
+                    value={singleType}
+                    onChange={(e) => {
+                      const t = e.target.value as BuildingType;
+                      const [a, c] = DEFAULT_SIZE[t];
+                      setSingleType(t);
+                      setSingleSize({ P: Math.max(a, c), L: Math.min(a, c) });
+                    }}
+                  >
+                    {(Object.keys(BUILDING_SPECS) as BuildingType[]).map((t) => (
+                      <option key={t} value={t}>
+                        {BUILDING_SPECS[t].name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(["P", "L"] as const).map((k) => (
+                  <label key={k} className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+                    {k === "P" ? "Panjang (m)" : "Lebar (m)"}
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0.6}
+                      value={singleSize[k]}
+                      onChange={(e) => setSingleSize((v) => ({ ...v, [k]: Math.max(0.6, parseFloat(e.target.value) || 0.6) }))}
+                      className="h-7 rounded border px-1.5 text-xs text-gray-900"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-gray-500">
+                Tips: klik bangunan di mode Kompleks lalu pilih &quot;Bangunan tunggal&quot; untuk memakai ukurannya. Tampak Depan/Samping untuk elevasi, &quot;Unduh 3D&quot; untuk file .glb.
+              </p>
+            </div>
+          )}
           {!sel && (
             <div className="rounded-md bg-white p-3 text-sm shadow-sm">
               <div className="flex items-center justify-between">
@@ -645,9 +795,11 @@ export default function Viewer3D({
                   <p className="font-semibold">{sel.spec.name}</p>
                   <p className="text-xs text-gray-500">{sel.spec.description}</p>
                 </div>
-                <button className="text-xs text-gray-400" onClick={() => setSelected(null)}>
-                  tutup
-                </button>
+                {!tunggal && (
+                  <button className="text-xs text-gray-400" onClick={() => setSelected(null)}>
+                    tutup
+                  </button>
+                )}
               </div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
                 <span>Garis atap</span>
