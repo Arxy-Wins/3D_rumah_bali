@@ -44,6 +44,34 @@ function DimLine({ a, b, color, label, labelColor }: { a: Vec2; b: Vec2; color: 
 /** ukuran lahan: lebar (timur–barat) di sisi utara, panjang (utara–selatan) di sisi barat */
 export function LandDimensions({ land }: { land: Vec2[] }) {
   if (land.length < 3) return null;
+  const xsA = new Set(land.map((p) => p.x.toFixed(3)));
+  const zsA = new Set(land.map((p) => p.z.toFixed(3)));
+  if (!(land.length === 4 && xsA.size === 2 && zsA.size === 2)) {
+    // lahan tidak kotak: ukuran tiap sisi, digeser keluar
+    let a2 = 0;
+    for (let i = 0; i < land.length; i++) {
+      const p = land[i];
+      const q = land[(i + 1) % land.length];
+      a2 += p.x * q.z - q.x * p.z;
+    }
+    const sgn = a2 > 0 ? 1 : -1;
+    return (
+      <group>
+        {land.map((p, i) => {
+          const q = land[(i + 1) % land.length];
+          const len = Math.hypot(q.x - p.x, q.z - p.z);
+          if (len < 0.3) return null;
+          // normal keluar
+          const nx = (sgn * (q.z - p.z)) / len;
+          const nz = (-sgn * (q.x - p.x)) / len;
+          const off = 1.2;
+          return (
+            <DimLine key={i} a={{ x: p.x + nx * off, z: p.z + nz * off }} b={{ x: q.x + nx * off, z: q.z + nz * off }} color="#1d4ed8" label={fmtM(len, 2)} />
+          );
+        })}
+      </group>
+    );
+  }
   const xs = land.map((p) => p.x);
   const zs = land.map((p) => p.z);
   const x0 = Math.min(...xs);

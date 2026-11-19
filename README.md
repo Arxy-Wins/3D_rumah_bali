@@ -51,3 +51,17 @@ Catatan: model GAN di `public/model` sudah dikuantisasi ke uint8 (±54 MB, 13 sh
 ## Atribusi
 
 Gambar pembanding di `public/elevations/` dan acuan bentuk/ukuran ornamen berasal dari *Traditional Balinese Building Architecture Dataset* — I Gusti Agung Gede Arya Kadyanan dkk., Mendeley Data, DOI [10.17632/h7hxgwydzj](https://doi.org/10.17632/h7hxgwydzj), lisensi CC BY 4.0. Gambar dipotong margin dan diperkecil.
+
+## Lahan tidak persegi
+
+Form "Parameter lahan" punya pilihan **Bentuk lahan**:
+
+| Pilihan | Yang diisi | Cocok untuk |
+|---|---|---|
+| Persegi panjang | lebar depan, panjang ke dalam | lahan kotak (sama dengan GitHub asal) |
+| Trapesium | sisi depan, belakang, kedalaman, geser | lahan melebar/menyempit ke belakang |
+| Ukur 4 sisi + 1 diagonal | depan, kanan, belakang, kiri, diagonal depan-kiri → belakang-kanan | ukuran sertifikat / meteran di lapangan |
+| Bentuk L | ukuran lahan + potongan di pojok belakang | lahan berpotongan |
+| Titik sudut bebas | koordinat tiap pojok (kanan, dalam) | bentuk apa pun |
+
+Kanan/kiri dilihat dari jalan menghadap lahan; sisi depan = sisi gerbang. Tier S1–S3 tetap dari kotak luar (panjang × lebar terbesar), posisi gerbang = sisi depan ÷ 9 (seperti API), tetapi batas lahan, jarak ke tembok, dan penyengker mengikuti bentuk aslinya.

@@ -177,14 +177,17 @@ function outsideCount(r: Rect, poly: Vec2[]) {
     { x: r.u0 + e, z: cv },
     { x: r.u1 - e, z: cv },
   ];
-  return pts.filter((q) => !pointInPolygon(q, poly)).length;
+  // pojok lahan yang menjorok ke dalam bangunan (lahan bentuk L, dsb.)
+  const inner = poly.filter((q) => q.x > r.u0 + e && q.x < r.u1 - e && q.z > r.v0 + e && q.z < r.v1 - e).length;
+  return pts.filter((q) => !pointInPolygon(q, poly)).length + inner * 2;
 }
 function nudgeInside(r: Rect, poly: Vec2[], ew: number, ns: number): Rect {
   if (outsideCount(r, poly) === 0) return r;
   let best = r;
   let bestScore = Infinity;
-  for (let du = -4; du <= 4.001; du += 0.25) {
-    for (let dv = -4; dv <= 4.001; dv += 0.25) {
+  const R = Math.max(4, Math.ceil(Math.max(ew, ns) / 2));
+  for (let du = -R; du <= R + 0.001; du += 0.25) {
+    for (let dv = -R; dv <= R + 0.001; dv += 0.25) {
       const c = fit({ u0: r.u0 + du, u1: r.u1 + du, v0: r.v0 + dv, v1: r.v1 + dv }, ew, ns);
       const score = outsideCount(c, poly) * 100 + Math.hypot(c.u0 - r.u0, c.v0 - r.v0);
       if (score < bestScore) {
@@ -265,7 +268,7 @@ export function buildAstaSegmentation(
     { x: ew / 2, z: ns / 2 },
     { x: -ew / 2, z: ns / 2 },
   ];
-  if (landWorld) notes.unshift(`Mengikuti bentuk lahan yang digambar, diskalakan ke ${ew.toFixed(1)} × ${ns.toFixed(1)} m.`);
+  if (landWorld) notes.unshift(`Mengikuti bentuk lahan (kotak luar ${ew.toFixed(1)} × ${ns.toFixed(1)} m, luas ${polygonAreaLocal(landWorld).toFixed(1)} m²).`);
   const area = landWorld ? polygonAreaLocal(landWorld) : ew * ns;
   const seg: Segmentation = { metersPerPixel: 0, land, landAreaM2: area, buildings, width: 0, height: 0, notes };
   return withGate(seg, p, gateSegment, true);
@@ -281,12 +284,26 @@ export function withGate(seg: Segmentation, p: AstaParams, gateSegment: number, 
   if (seg.land.length < 3) return seg;
   const xs = seg.land.map((q) => q.x);
   const zs = seg.land.map((q) => q.z);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minZ = Math.min(...zs);
-  const maxZ = Math.max(...zs);
+  let minX = Math.min(...xs);
+  let maxX = Math.max(...xs);
+  let minZ = Math.min(...zs);
+  let maxZ = Math.max(...zs);
   const { axis, t } = gateSegmentT(p.gateDirection, gateSegment);
   const out = GATE_OUTWARD[p.gateDirection];
+  // lahan tidak kotak: pakai rentang sisi depan yang sebenarnya (API: sisi depan ÷ 9)
+  {
+    const front = axis === "x"
+      ? seg.land.filter((q) => Math.abs(q.z - (out.z < 0 ? minZ : maxZ)) < 0.05)
+      : seg.land.filter((q) => Math.abs(q.x - (out.x > 0 ? maxX : minX)) < 0.05);
+    if (front.length >= 2) {
+      const vals = front.map((q) => (axis === "x" ? q.x : q.z));
+      const lo = Math.min(...vals);
+      const hi = Math.max(...vals);
+      if (hi - lo > 1) {
+        if (axis === "x") { minX = lo; maxX = hi; } else { minZ = lo; maxZ = hi; }
+      }
+    }
+  }
   const sideLen = axis === "x" ? maxX - minX : maxZ - minZ;
   const along = clamp(sideLen / 9, 1.2, 3.0);
   const depth = 1.1;

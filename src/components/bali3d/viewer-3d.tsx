@@ -16,6 +16,7 @@ import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
 import { AssemblyMarker, CollapseZone, EvacuationRoutes, Ground, Penyengker, SafeArea } from "./site-mesh";
 import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
 import type { PlacedBuilding } from "../../lib/bali3d/layout";
+import { buildLand, DEFAULT_LAND, LAND_MODE_LABEL, landToWorld, sideLengths, type LandInput, type LandMode } from "../../lib/bali3d/land-shape";
 import { CATALOG, CATALOG_BY_ID, DEFAULT_ENTRY } from "../../lib/bali3d/catalog";
 import { ShrineModel, shrineHeight } from "./shrines";
 import { BuildingDims, LandDimensions, RuleDistanceLines } from "./dimensions";
@@ -172,10 +173,67 @@ const DEFAULT_ASTA: AstaParams = {
   orientation: "Bali Selatan",
 };
 
+/** pratinjau bentuk lahan dengan panjang tiap sisi; sisi depan (jalan) di bawah */
+function LandPreview({ land }: { land: LandInput }) {
+  const r = buildLand(land);
+  if (r.pts.length < 3) return null;
+  const us = r.pts.map((q) => q.u);
+  const ws = r.pts.map((q) => q.w);
+  const u0 = Math.min(...us);
+  const w1 = Math.max(...ws);
+  const span = Math.max(r.bboxU, r.bboxW, 1);
+  const S = 150 / span;
+  const pad = 28;
+  const X = (u: number) => pad + (u - u0) * S;
+  const Y = (w: number) => pad + (w1 - w) * S;
+  const W = r.bboxU * S + pad * 2;
+  const H = r.bboxW * S + pad * 2 + 12;
+  const lens = sideLengths(r.pts);
+  const cx = r.pts.reduce((a, q) => a + q.u, 0) / r.pts.length;
+  const cw = r.pts.reduce((a, q) => a + q.w, 0) / r.pts.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block max-h-56 w-full max-w-[260px]">
+      <polygon points={r.pts.map((q) => `${X(q.u)},${Y(q.w)}`).join(" ")} fill={r.error ? "#fee2e2" : "#e7dcc2"} stroke="#7a5b3a" strokeWidth={1.5} />
+      <line x1={X(r.pts[0].u)} y1={Y(0)} x2={X(r.pts[1].u)} y2={Y(0)} stroke="#2563eb" strokeWidth={3} />
+      {r.pts.map((a, i) => {
+        const b = r.pts[(i + 1) % r.pts.length];
+        const mu = (a.u + b.u) / 2;
+        const mw = (a.w + b.w) / 2;
+        // geser label sedikit keluar dari pusat lahan
+        const du = mu - cx;
+        const dw = mw - cw;
+        const dl = Math.hypot(du, dw) || 1;
+        const lx = X(mu) + (du / dl) * 12;
+        const ly = Y(mw) - (dw / dl) * 12;
+        return (
+          <text key={i} x={lx} y={ly} fontSize={9} textAnchor="middle" dominantBaseline="middle" fill="#1d4ed8">
+            {lens[i].toFixed(2).replace(".", ",")}
+          </text>
+        );
+      })}
+      <text x={(X(r.pts[0].u) + X(r.pts[1].u)) / 2} y={Y(0) + 22} fontSize={9} textAnchor="middle" fill="#2563eb">
+        JALAN / sisi gerbang
+      </text>
+    </svg>
+  );
+}
+
 /** form parameter lahan (sama dengan form Generate / Building Layout) — 3D bisa dibuat tanpa GAN */
-function AstaForm({ value, onSubmit, compact }: { value: AstaParams; onSubmit: (p: AstaParams) => void; compact?: boolean }) {
+function AstaForm({
+  value,
+  land: landValue,
+  onSubmit,
+  compact,
+}: {
+  value: AstaParams;
+  land: LandInput;
+  onSubmit: (p: AstaParams, land: LandInput) => void;
+  compact?: boolean;
+}) {
   const [v, setV] = useState<AstaParams>(value);
+  const [land, setLand] = useState<LandInput>(landValue);
   useEffect(() => setV(value), [value]);
+  useEffect(() => setLand(landValue), [landValue]);
   const num = (k: keyof AstaParams, label: string, step = 1) => (
     <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
       {label}
@@ -188,20 +246,81 @@ function AstaForm({ value, onSubmit, compact }: { value: AstaParams; onSubmit: (
       />
     </label>
   );
-  const invalid =
-    (v.landLength < 6 && v.landWidth < 7) || (v.landLength < 7 && v.landWidth < 6) || v.landLength === v.landWidth;
+  const lnum = (k: keyof LandInput, label: string) => (
+    <label key={k} className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+      {label}
+      <input
+        type="number"
+        step={0.1}
+        value={land[k] as number}
+        onChange={(e) => setLand({ ...land, [k]: parseFloat(e.target.value) || 0 })}
+        className="h-7 rounded border px-1.5 text-xs text-gray-900"
+      />
+    </label>
+  );
+  const r = buildLand(land);
+  const Lw = +r.bboxW.toFixed(2); // panjang (ke dalam)
+  const Ww = +r.bboxU.toFixed(2); // lebar (sepanjang jalan)
+  const tooSmall = (Lw < 6 && Ww < 7) || (Lw < 7 && Ww < 6);
+  const square = land.mode === "persegi" && Lw === Ww;
+  const msg = r.error ?? (tooSmall ? "Lahan minimal 6×7 m." : square ? "Lahan persegi panjang tidak boleh persegi (aturan tabel)." : "");
+  const invalid = !!msg;
+  const fields: Record<LandMode, React.ReactNode> = {
+    persegi: (
+      <>
+        {lnum("depan", "Lebar depan / sisi jalan (m)")}
+        {lnum("dalam", "Panjang ke dalam (m)")}
+      </>
+    ),
+    trapesium: (
+      <>
+        {lnum("depan", "Sisi depan (m)")}
+        {lnum("belakang", "Sisi belakang (m)")}
+        {lnum("dalam", "Kedalaman tegak lurus (m)")}
+        {lnum("geser", "Geser belakang ke kanan (m)")}
+      </>
+    ),
+    ukur: (
+      <>
+        {lnum("depan", "Sisi depan (m)")}
+        {lnum("kanan", "Sisi kanan (m)")}
+        {lnum("belakang", "Sisi belakang (m)")}
+        {lnum("kiri", "Sisi kiri (m)")}
+        {lnum("diagonal", "Diagonal depan-kiri → belakang-kanan (m)")}
+      </>
+    ),
+    L: (
+      <>
+        {lnum("depan", "Lebar depan (m)")}
+        {lnum("dalam", "Panjang ke dalam (m)")}
+        {lnum("potongLebar", "Lebar potongan (m)")}
+        {lnum("potongDalam", "Dalam potongan (m)")}
+        <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
+          Potongan di belakang
+          <select className="h-7 rounded border px-1 text-xs text-gray-900" value={land.potongSisi} onChange={(e) => setLand({ ...land, potongSisi: e.target.value as "kanan" | "kiri" })}>
+            <option value="kanan">kanan</option>
+            <option value="kiri">kiri</option>
+          </select>
+        </label>
+      </>
+    ),
+    titik: (
+      <label className="col-span-full flex flex-col gap-0.5 text-[11px] text-gray-600">
+        Titik sudut berurutan, satu per baris: <span className="text-gray-400">kanan,dalam (m) — titik 1 → 2 = sisi depan</span>
+        <textarea rows={5} value={land.titik} onChange={(e) => setLand({ ...land, titik: e.target.value })} className="rounded border px-1.5 py-1 font-mono text-xs text-gray-900" />
+      </label>
+    ),
+  };
   return (
     <form
       className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!invalid) onSubmit(v);
+        if (!invalid) onSubmit({ ...v, landLength: Lw, landWidth: Ww }, land);
       }}
     >
       {num("footLength", "Panjang telapak kaki (cm)")}
       {num("sideFootLength", "Lebar telapak kaki (cm)")}
-      {num("landLength", "Panjang lahan (m)", 0.5)}
-      {num("landWidth", "Lebar lahan (m)", 0.5)}
       <label className="flex flex-col gap-0.5 text-[11px] text-gray-600">
         Arah gerbang (jalan)
         <select className="h-7 rounded border px-1 text-xs text-gray-900" value={v.gateDirection} onChange={(e) => setV({ ...v, gateDirection: e.target.value as GateDirection })}>
@@ -217,8 +336,26 @@ function AstaForm({ value, onSubmit, compact }: { value: AstaParams; onSubmit: (
           <option>Bali Utara</option>
         </select>
       </label>
+      <label className="col-span-full flex flex-col gap-0.5 text-[11px] text-gray-600">
+        Bentuk lahan
+        <select className="h-7 rounded border px-1 text-xs text-gray-900" value={land.mode} onChange={(e) => setLand({ ...land, mode: e.target.value as LandMode })}>
+          {(Object.keys(LAND_MODE_LABEL) as LandMode[]).map((m) => (
+            <option key={m} value={m}>
+              {LAND_MODE_LABEL[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {fields[land.mode]}
+      <div className="col-span-full">
+        <LandPreview land={land} />
+        <p className="text-center text-[10px] text-gray-500">
+          Kanan/kiri dilihat dari jalan menghadap lahan • luas {r.area.toFixed(1).replace(".", ",")} m² • kotak luar {Ww.toFixed(1).replace(".", ",")} × {Lw.toFixed(1).replace(".", ",")} m
+          {land.mode === "ukur" && " • ukuran sertifikat/meteran: 4 sisi saja belum cukup, perlu 1 diagonal"}
+        </p>
+      </div>
       <div className="col-span-full flex items-center justify-between gap-2">
-        <span className="text-[11px] text-red-600">{invalid ? "Lahan minimal 6×7 m dan tidak boleh persegi." : ""}</span>
+        <span className="text-[11px] text-red-600">{msg}</span>
         <Btn active type="submit" disabled={invalid}>
           Buat 3D
         </Btn>
@@ -245,10 +382,17 @@ export default function Viewer3D({
 }) {
   // tanpa GAN: langsung tampilkan 3D dengan parameter contoh, bisa diubah di panel
   const [localAsta, setLocalAsta] = useState<AstaParams | null>(allowGan ? null : DEFAULT_ASTA);
+  const [landInput, setLandInput] = useState<LandInput>(DEFAULT_LAND);
   useEffect(() => {
     if (astaProp) setLocalAsta(null);
   }, [astaProp]);
   const asta = localAsta ?? astaProp;
+  // bentuk lahan dari input ukuran (selain persegi panjang) → poligon dunia
+  const shapeWorld = useMemo(() => {
+    if (!asta || landInput.mode === "persegi") return null;
+    const r = buildLand(landInput);
+    return r.error ? null : landToWorld(r.pts, asta.gateDirection);
+  }, [asta, landInput]);
   const [showForm, setShowForm] = useState(!allowGan);
   const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
   const [overrides, setOverrides] = useState<SpecOverrides>({});
@@ -312,14 +456,14 @@ export default function Viewer3D({
     if (mode === "aturan" && asta) {
       setComputing(true);
       const id = window.setTimeout(() => {
-        setSeg(buildAstaSegmentation(asta, null, gateSeg, landShape));
+        setSeg(buildAstaSegmentation(asta, null, gateSeg, shapeWorld ?? landShape));
         setComputing(false);
       }, 30);
       return () => window.clearTimeout(id);
     }
     setSeg(segGan && asta ? withGate(segGan, asta, gateSeg) : segGan);
     setComputing(false);
-  }, [mode, asta, segGan, gateSeg, landShape]);
+  }, [mode, asta, segGan, gateSeg, landShape, shapeWorld]);
 
   const tunggal = viewMode === "tunggal";
   const singleSeg: Segmentation = useMemo(() => {
@@ -438,7 +582,9 @@ export default function Viewer3D({
         <p className="mb-2 font-medium text-gray-800">Buat 3D langsung dari aturan Asta Kosala Kosali (tanpa GAN)</p>
         <AstaForm
           value={DEFAULT_ASTA}
-          onSubmit={(p) => {
+          land={landInput}
+          onSubmit={(p, l) => {
+            setLandInput(l);
             setLocalAsta(p);
             setLayoutMode("aturan");
           }}
@@ -777,7 +923,9 @@ export default function Viewer3D({
                   <AstaForm
                     compact
                     value={asta ?? DEFAULT_ASTA}
-                    onSubmit={(p) => {
+                    land={landInput}
+          onSubmit={(p, l) => {
+            setLandInput(l);
                       setLocalAsta(p);
                       setLayoutMode("aturan");
                       if (allowGan) setShowForm(false);
