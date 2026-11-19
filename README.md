@@ -21,8 +21,9 @@ Detail: [`docs/3D-MITIGASI-GEMPA.md`](docs/3D-MITIGASI-GEMPA.md).
 
 ## Alur pakai
 
-- **Tanpa GAN (seperti simulator):** isi *Parameter lahan* di bagian "Model 3D" → **Buat 3D**. Kalau lahan sudah digambar dengan tool Area, bentuknya ikut dipakai (diskalakan ke panjang × lebar).
-- **Dengan GAN:** gambar lahan + jalan → Generate → pilih **Denah GAN** atau **Aturan Asta Kosala Kosali**, lalu cek tabel kesesuaian jarak.
+Buka halaman → isi **Parameter lahan** (panjang & lebar telapak kaki, panjang & lebar lahan, arah gerbang, Bali Utara/Selatan) → **Buat 3D**. Tabel kesesuaian menunjukkan jarak aturan vs jarak di 3D.
+
+Halaman lama (gambar lahan + GAN + ToolBox) masih ada di `src/components/main.tsx` tapi tidak dipakai di halaman utama. Model GAN di `public/model` tidak diunduh lagi oleh halaman ini.
 
 ## Jalankan lokal
 

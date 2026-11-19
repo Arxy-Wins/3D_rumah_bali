@@ -212,6 +212,7 @@ export default function Viewer3D({
   footLength,
   asta: astaProp,
   landShape,
+  allowGan = true,
 }: {
   image?: CanvasImageSource;
   footLength: number;
@@ -219,11 +220,16 @@ export default function Viewer3D({
   asta?: AstaParams;
   /** bentuk lahan yang digambar pengguna (x = timur, z = selatan; satuan bebas) */
   landShape?: LandShape;
+  /** false: hanya mode aturan dari input (tanpa denah GAN / unggah gambar) */
+  allowGan?: boolean;
 }) {
-  const [localAsta, setLocalAsta] = useState<AstaParams | null>(null);
-  useEffect(() => setLocalAsta(null), [astaProp]);
+  // tanpa GAN: langsung tampilkan 3D dengan parameter contoh, bisa diubah di panel
+  const [localAsta, setLocalAsta] = useState<AstaParams | null>(allowGan ? null : DEFAULT_ASTA);
+  useEffect(() => {
+    if (astaProp) setLocalAsta(null);
+  }, [astaProp]);
   const asta = localAsta ?? astaProp;
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!allowGan);
   const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
   const [overrides, setOverrides] = useState<SpecOverrides>({});
   const [params, setParams] = useState<SeismicParams>(DEFAULT_PARAMS);
@@ -346,6 +352,8 @@ export default function Viewer3D({
     <div className="flex w-full flex-col gap-3">
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-2 shadow-sm">
+        {allowGan && (
+          <>
         <span className="text-xs font-semibold text-gray-500">Tata letak</span>
         <Toggle active={mode === "gan"} disabled={!segGan} onClick={() => setLayoutMode("gan")} title="Posisi bangunan mengikuti denah hasil GAN">
           Denah GAN
@@ -358,6 +366,8 @@ export default function Viewer3D({
         >
           Aturan Asta Kosala Kosali
         </Toggle>
+          </>
+        )}
         <span className="ml-2 text-xs font-semibold text-gray-500">Tampak</span>
         {(["atas", "depan", "perspektif"] as CamPreset[]).map((p) => (
           <Toggle
@@ -419,6 +429,7 @@ export default function Viewer3D({
         <Toggle active={shadowsOn} onClick={() => setShadowsOn((v) => !v)} title="Bayangan lebih bagus tapi lebih berat">
           Bayangan
         </Toggle>
+        {allowGan && (
         <label className="ml-auto cursor-pointer text-xs text-gray-500 underline">
           Muat denah lain
           <input
@@ -435,6 +446,7 @@ export default function Viewer3D({
             }}
           />
         </label>
+        )}
       </div>
 
       <div className="flex w-full flex-col gap-3 xl:flex-row">
@@ -523,7 +535,7 @@ export default function Viewer3D({
               {asta && !showForm && (
                 <p className="text-xs text-gray-500">
                   {asta.landLength} × {asta.landWidth} m • gerbang {asta.gateDirection} • {asta.orientation} • telapak {asta.footLength}/{asta.sideFootLength} cm
-                  {localAsta ? " (diubah di sini)" : ""}
+                  {localAsta && astaProp ? " (diubah di sini)" : ""}
                 </p>
               )}
               {(showForm || !asta) && (
@@ -534,7 +546,7 @@ export default function Viewer3D({
                     onSubmit={(p) => {
                       setLocalAsta(p);
                       setLayoutMode("aturan");
-                      setShowForm(false);
+                      if (allowGan) setShowForm(false);
                     }}
                   />
                 </div>

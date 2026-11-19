@@ -1,19 +1,8 @@
-// import Main from "@/components/main";
-
-// export default function page() {
-//   return (
-//     <div className="min-h-screen bg-gray-100">
-//       <Main />
-//     </div>
-//   );
-// }
-
-
 import dynamic from "next/dynamic";
 
-const Main = dynamic(() => import("@/components/main"), { ssr: false });
+// Halaman lama (gambar lahan + GAN + ToolBox) masih ada di src/components/main.tsx bila dibutuhkan lagi.
+const Home3D = dynamic(() => import("@/components/home-3d"), { ssr: false });
 
 export default function Page() {
-  return <Main />;
+  return <Home3D />;
 }
-
