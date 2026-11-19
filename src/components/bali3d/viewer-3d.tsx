@@ -18,6 +18,13 @@ import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
 
 type CamPreset = "atas" | "depan" | "perspektif";
 
+/**
+ * Fitur mitigasi gempa (peta zona runtuh, titik kumpul, jalur evakuasi, perkuatan,
+ * simulasi guncangan, cek per bangunan) disembunyikan dulu. Kode tetap ada di
+ * lib/bali3d/seismic.ts & komponen terkait — ubah ke true untuk mengaktifkan lagi.
+ */
+const ENABLE_GEMPA = false;
+
 const STATUS_STYLE: Record<CheckStatus, string> = {
   ok: "bg-green-100 text-green-800",
   warn: "bg-amber-100 text-amber-800",
@@ -265,7 +272,10 @@ export default function Viewer3D({
   }, [mode, asta, segGan, gateSeg, landShape]);
 
   const buildings = useMemo(() => (seg ? placeBuildings(seg, overrides) : []), [seg, overrides]);
-  const site = useMemo(() => (seg ? analyzeSite(seg, buildings, params) : null), [seg, buildings, params]);
+  const site = useMemo(
+    () => (ENABLE_GEMPA && seg ? analyzeSite(seg, buildings, params) : null),
+    [seg, buildings, params]
+  );
 
   useEffect(() => setSelected(null), [seg]);
   const compliance = useMemo(
@@ -374,6 +384,8 @@ export default function Viewer3D({
             {l}
           </Toggle>
         ))}
+        {ENABLE_GEMPA && (
+          <>
         <span className="ml-2 text-xs font-semibold text-gray-500">Gempa</span>
         <Toggle active={showMitigation} onClick={() => setShowMitigation((v) => !v)} title="Zona runtuh, titik kumpul, jalur evakuasi, tingkat risiko">
           Peta mitigasi
@@ -399,6 +411,8 @@ export default function Viewer3D({
         <Btn variant="danger" onClick={startShake} disabled={shaking}>
           {shaking ? "Mengguncang…" : "Simulasi gempa"}
         </Btn>
+          </>
+        )}
         <Toggle active={showLabels} onClick={() => setShowLabels((v) => !v)}>
           Label
         </Toggle>
@@ -599,7 +613,7 @@ export default function Viewer3D({
               )}
             </div>
           )}
-          {sel && selReport ? (
+          {sel ? (
             <div className="rounded-md bg-white p-3 text-sm shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
@@ -619,6 +633,8 @@ export default function Viewer3D({
                 <span className="text-right">{sel.height.toFixed(2)} m</span>
                 <span>Saka</span>
                 <span className="text-right">{sel.spec.sakaCount}</span>
+                {selReport && (
+                  <>
                 <span>Berat seismik (W)</span>
                 <span className="text-right">{selReport.weightKN.toFixed(1)} kN</span>
                 <span>Gaya geser dasar (V)</span>
@@ -627,6 +643,8 @@ export default function Viewer3D({
                 <span className="text-right">{selReport.periodS.toFixed(2)} s</span>
                 <span>Tingkat risiko</span>
                 <span className={`text-right font-semibold ${LEVEL_STYLE[selReport.level]}`}>{selReport.level}</span>
+                  </>
+                )}
               </div>
 
               <p className="mt-3 text-xs font-semibold text-gray-500">Parameter tampak depan</p>
@@ -676,6 +694,8 @@ export default function Viewer3D({
                 onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
               />
 
+              {selReport && (
+                <>
               <p className="mt-3 text-xs font-semibold text-gray-500">Cek mitigasi gempa</p>
               <ul className="mt-1 space-y-1.5">
                 {selReport.checks.map((c) => (
@@ -686,6 +706,8 @@ export default function Viewer3D({
                   </li>
                 ))}
               </ul>
+                </>
+              )}
             </div>
           ) : (
             site &&
@@ -734,6 +756,7 @@ export default function Viewer3D({
             )
           )}
 
+          {ENABLE_GEMPA && (
           <div className="rounded-md bg-white p-3 shadow-sm">
             <p className="mb-1 text-xs font-semibold text-gray-500">Parameter gempa</p>
             <div className="space-y-1">
@@ -747,6 +770,7 @@ export default function Viewer3D({
               aplikasi Spektra Indonesia (PUSKIM PUPR). Bukan pengganti perhitungan struktur oleh ahli.
             </p>
           </div>
+          )}
         </div>
       </div>
     </div>

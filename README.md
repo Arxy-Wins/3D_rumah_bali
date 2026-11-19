@@ -1,6 +1,8 @@
 # 3D Rumah Bali
 
-Rumah tradisional Bali 3D dari denah tampak atas, dengan tata letak Asta Kosala Kosali dan simulasi mitigasi gempa.
+Rumah tradisional Bali 3D dari denah tampak atas, dengan tata letak Asta Kosala Kosali.
+
+> Fitur mitigasi gempa sedang dinonaktifkan dari tampilan (`ENABLE_GEMPA = false` di `src/components/bali3d/viewer-3d.tsx`); kodenya tetap ada di `src/lib/bali3d/seismic.ts`.
 
 Turunan dari:
 - [rikautamii/bali-building-plan-design](https://github.com/rikautamii/bali-building-plan-design) — generator denah (GAN pix2pix, TensorFlow.js)

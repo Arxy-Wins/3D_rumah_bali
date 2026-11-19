@@ -514,7 +514,7 @@ export default function Main() {
         </div>
       )}
       <div className="flex flex-col gap-3 mt-10 w-full">
-        <p className="font-medium">Model 3D &amp; Mitigasi Gempa</p>
+        <p className="font-medium">Model 3D Rumah Bali</p>
         <p className="text-xs text-gray-500 -mt-2">
           Pilih tata letak dari denah GAN atau dari rumus jarak Asta Kosala Kosali (input form Generate). Tinggi bebaturan,
           saka, dinding dan bentuk atap diambil dari parameter tampak depan per tipe bangunan (src/lib/bali3d/specs.ts).
