@@ -15,6 +15,7 @@ import { BUILDING_SPECS, type BuildingSpec, type RoofMaterial, type WallMaterial
 import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
 import { AssemblyMarker, CollapseZone, EvacuationRoutes, Ground, Penyengker, SafeArea } from "./site-mesh";
 import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
+import { LandDimensions, RuleDistanceLines } from "./dimensions";
 
 type CamPreset = "atas" | "depan" | "perspektif";
 
@@ -128,7 +129,7 @@ function Compass({ land, kaja }: { land: { x: number; z: number }[]; kaja: { x: 
   const minZ = Math.min(...land.map((p) => p.z));
   const maxZ = Math.max(...land.map((p) => p.z));
   const maxX = Math.max(...land.map((p) => p.x));
-  const kz = kaja.z < 0 ? minZ - 1.6 : maxZ + 1.6;
+  const kz = kaja.z < 0 ? minZ - 3.4 : maxZ + 3.4;
   return (
     <>
       <Html position={[maxX + 2.2, 0.2, minZ - 1.2]} center style={{ pointerEvents: "none" }}>
@@ -212,6 +213,7 @@ export default function Viewer3D({
   footLength,
   asta: astaProp,
   landShape,
+  allowGan = true,
 }: {
   image?: CanvasImageSource;
   footLength: number;
@@ -219,11 +221,16 @@ export default function Viewer3D({
   asta?: AstaParams;
   /** bentuk lahan yang digambar pengguna (x = timur, z = selatan; satuan bebas) */
   landShape?: LandShape;
+  /** false: hanya mode aturan dari input (tanpa denah GAN / unggah gambar) */
+  allowGan?: boolean;
 }) {
-  const [localAsta, setLocalAsta] = useState<AstaParams | null>(null);
-  useEffect(() => setLocalAsta(null), [astaProp]);
+  // tanpa GAN: langsung tampilkan 3D dengan parameter contoh, bisa diubah di panel
+  const [localAsta, setLocalAsta] = useState<AstaParams | null>(allowGan ? null : DEFAULT_ASTA);
+  useEffect(() => {
+    if (astaProp) setLocalAsta(null);
+  }, [astaProp]);
   const asta = localAsta ?? astaProp;
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!allowGan);
   const [uploaded, setUploaded] = useState<HTMLImageElement | null>(null);
   const [overrides, setOverrides] = useState<SpecOverrides>({});
   const [params, setParams] = useState<SeismicParams>(DEFAULT_PARAMS);
@@ -236,6 +243,8 @@ export default function Viewer3D({
   const [intensityIdx, setIntensityIdx] = useState(1);
   const [shaking, setShaking] = useState(false);
   const [shadowsOn, setShadowsOn] = useState(false);
+  const [showDims, setShowDims] = useState(true);
+  const [showDist, setShowDist] = useState(false);
   const shakeRef = useRef<ShakeState>({ active: false, start: 0, duration: 12, intensity: 0, freq: 2 });
 
   const source = uploaded ?? image;
@@ -292,6 +301,7 @@ export default function Viewer3D({
     showMitigation,
     showLabels,
     mitigationApplied: params.mitigationApplied,
+    showDims,
   };
 
   const sel = buildings.find((b) => b.id === selected) ?? null;
@@ -346,6 +356,8 @@ export default function Viewer3D({
     <div className="flex w-full flex-col gap-3">
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-2 shadow-sm">
+        {allowGan && (
+          <>
         <span className="text-xs font-semibold text-gray-500">Tata letak</span>
         <Toggle active={mode === "gan"} disabled={!segGan} onClick={() => setLayoutMode("gan")} title="Posisi bangunan mengikuti denah hasil GAN">
           Denah GAN
@@ -358,6 +370,8 @@ export default function Viewer3D({
         >
           Aturan Asta Kosala Kosali
         </Toggle>
+          </>
+        )}
         <span className="ml-2 text-xs font-semibold text-gray-500">Tampak</span>
         {(["atas", "depan", "perspektif"] as CamPreset[]).map((p) => (
           <Toggle
@@ -413,12 +427,20 @@ export default function Viewer3D({
         </Btn>
           </>
         )}
+        <span className="ml-2 text-xs font-semibold text-gray-500">Tampilkan</span>
         <Toggle active={showLabels} onClick={() => setShowLabels((v) => !v)}>
           Label
+        </Toggle>
+        <Toggle active={showDims} onClick={() => setShowDims((v) => !v)} title="Panjang × lebar bangunan dan ukuran lahan">
+          Ukuran
+        </Toggle>
+        <Toggle active={showDist} disabled={!asta} onClick={() => setShowDist((v) => !v)} title="Garis jarak aturan Asta Kosala Kosali (hijau sesuai, merah tidak)">
+          Jarak
         </Toggle>
         <Toggle active={shadowsOn} onClick={() => setShadowsOn((v) => !v)} title="Bayangan lebih bagus tapi lebih berat">
           Bayangan
         </Toggle>
+        {allowGan && (
         <label className="ml-auto cursor-pointer text-xs text-gray-500 underline">
           Muat denah lain
           <input
@@ -435,6 +457,7 @@ export default function Viewer3D({
             }}
           />
         </label>
+        )}
       </div>
 
       <div className="flex w-full flex-col gap-3 xl:flex-row">
@@ -463,6 +486,8 @@ export default function Viewer3D({
               <GroundMotion onEnd={() => setShaking(false)}>
                 {seg && <Ground land={seg.land} />}
                 {seg && <Compass land={seg.land} kaja={kajaDir(asta?.orientation ?? "Bali Selatan")} />}
+                {seg && showDims && <LandDimensions land={seg.land} />}
+                {seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
                 {seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} />}
                 {buildings.map((b) => (
                   <BaliBuilding
@@ -523,7 +548,7 @@ export default function Viewer3D({
               {asta && !showForm && (
                 <p className="text-xs text-gray-500">
                   {asta.landLength} × {asta.landWidth} m • gerbang {asta.gateDirection} • {asta.orientation} • telapak {asta.footLength}/{asta.sideFootLength} cm
-                  {localAsta ? " (diubah di sini)" : ""}
+                  {localAsta && astaProp ? " (diubah di sini)" : ""}
                 </p>
               )}
               {(showForm || !asta) && (
@@ -534,7 +559,7 @@ export default function Viewer3D({
                     onSubmit={(p) => {
                       setLocalAsta(p);
                       setLayoutMode("aturan");
-                      setShowForm(false);
+                      if (allowGan) setShowForm(false);
                     }}
                   />
                 </div>

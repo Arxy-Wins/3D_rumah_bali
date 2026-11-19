@@ -17,6 +17,8 @@ export interface ViewFlags {
   showMitigation: boolean;
   showLabels: boolean;
   mitigationApplied: boolean;
+  /** tampilkan panjang × lebar (garis atap) di label bangunan */
+  showDims?: boolean;
 }
 
 const C = {
@@ -488,14 +490,23 @@ export function BaliBuilding({
           )}
         </group>
       </group>
-      {flags.showLabels && (
+      {(flags.showLabels || flags.showDims) && (
         <Html position={[0, b.height + 0.6, 0]} center distanceFactor={22} style={{ pointerEvents: "none" }}>
-          <div className="whitespace-nowrap rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium shadow">
-            {s.name.split(" (")[0]}
-            {flags.showMitigation && report && (
-              <span className="ml-1 font-semibold" style={{ color: RISK_COLOR[report.level] }}>
-                • {report.level}
-              </span>
+          <div className="whitespace-nowrap rounded bg-white/90 px-1.5 py-0.5 text-center text-[11px] font-medium leading-tight shadow">
+            {flags.showLabels && (
+              <div>
+                {s.name.split(" (")[0]}
+                {flags.showMitigation && report && (
+                  <span className="ml-1 font-semibold" style={{ color: RISK_COLOR[report.level] }}>
+                    • {report.level}
+                  </span>
+                )}
+              </div>
+            )}
+            {flags.showDims && (
+              <div className="text-[10px] font-semibold text-blue-700">
+                {Math.max(b.W, b.D).toFixed(2).replace(".", ",")} × {Math.min(b.W, b.D).toFixed(2).replace(".", ",")} m
+              </div>
             )}
           </div>
         </Html>

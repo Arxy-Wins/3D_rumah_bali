@@ -15,6 +15,7 @@ import { BUILDING_SPECS, type BuildingSpec, type RoofMaterial, type WallMaterial
 import { BaliBuilding, type RoofMode, type ViewFlags } from "./building-mesh";
 import { AssemblyMarker, CollapseZone, EvacuationRoutes, Ground, Penyengker, SafeArea } from "./site-mesh";
 import { GroundMotion, ShakeProvider, type ShakeState } from "./shake";
+import { LandDimensions, RuleDistanceLines } from "./dimensions";
 
 type CamPreset = "atas" | "depan" | "perspektif";
 
@@ -128,7 +129,7 @@ function Compass({ land, kaja }: { land: { x: number; z: number }[]; kaja: { x: 
   const minZ = Math.min(...land.map((p) => p.z));
   const maxZ = Math.max(...land.map((p) => p.z));
   const maxX = Math.max(...land.map((p) => p.x));
-  const kz = kaja.z < 0 ? minZ - 1.6 : maxZ + 1.6;
+  const kz = kaja.z < 0 ? minZ - 3.4 : maxZ + 3.4;
   return (
     <>
       <Html position={[maxX + 2.2, 0.2, minZ - 1.2]} center style={{ pointerEvents: "none" }}>
@@ -242,6 +243,8 @@ export default function Viewer3D({
   const [intensityIdx, setIntensityIdx] = useState(1);
   const [shaking, setShaking] = useState(false);
   const [shadowsOn, setShadowsOn] = useState(false);
+  const [showDims, setShowDims] = useState(true);
+  const [showDist, setShowDist] = useState(false);
   const shakeRef = useRef<ShakeState>({ active: false, start: 0, duration: 12, intensity: 0, freq: 2 });
 
   const source = uploaded ?? image;
@@ -298,6 +301,7 @@ export default function Viewer3D({
     showMitigation,
     showLabels,
     mitigationApplied: params.mitigationApplied,
+    showDims,
   };
 
   const sel = buildings.find((b) => b.id === selected) ?? null;
@@ -423,8 +427,15 @@ export default function Viewer3D({
         </Btn>
           </>
         )}
+        <span className="ml-2 text-xs font-semibold text-gray-500">Tampilkan</span>
         <Toggle active={showLabels} onClick={() => setShowLabels((v) => !v)}>
           Label
+        </Toggle>
+        <Toggle active={showDims} onClick={() => setShowDims((v) => !v)} title="Panjang × lebar bangunan dan ukuran lahan">
+          Ukuran
+        </Toggle>
+        <Toggle active={showDist} disabled={!asta} onClick={() => setShowDist((v) => !v)} title="Garis jarak aturan Asta Kosala Kosali (hijau sesuai, merah tidak)">
+          Jarak
         </Toggle>
         <Toggle active={shadowsOn} onClick={() => setShadowsOn((v) => !v)} title="Bayangan lebih bagus tapi lebih berat">
           Bayangan
@@ -475,6 +486,8 @@ export default function Viewer3D({
               <GroundMotion onEnd={() => setShaking(false)}>
                 {seg && <Ground land={seg.land} />}
                 {seg && <Compass land={seg.land} kaja={kajaDir(asta?.orientation ?? "Bali Selatan")} />}
+                {seg && showDims && <LandDimensions land={seg.land} />}
+                {seg && showDist && asta && <RuleDistanceLines buildings={buildings} land={seg.land} asta={asta} />}
                 {seg && <Penyengker land={seg.land} gate={gate} reinforced={params.mitigationApplied} />}
                 {buildings.map((b) => (
                   <BaliBuilding
